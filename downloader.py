@@ -74,7 +74,12 @@ class TelegramDownloader:
 
         if "t.me/" in link:
             part = link.split("t.me/")[-1].split("?")[0].strip("/")
-            if part.startswith("+"):
+            if part.startswith("c/"):
+                # Private channel link: t.me/c/CHANNEL_ID/...
+                # Extract channel ID and convert to Telethon format
+                channel_id = int(part.split("/")[1])
+                entity = await self.client.get_entity(int(f"-100{channel_id}"))
+            elif part.startswith("+"):
                 from telethon.tl.functions.messages import ImportChatInviteRequest
                 try:
                     updates = await self.client(ImportChatInviteRequest(part[1:]))
