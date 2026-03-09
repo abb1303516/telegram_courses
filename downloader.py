@@ -15,6 +15,7 @@ from telethon.tl.types import (
     DocumentAttributeAudio,
     DocumentAttributeVideo,
 )
+from telethon.utils import get_input_location
 
 from config import Config
 
@@ -231,6 +232,38 @@ class TelegramDownloader:
         self.progress[course_id]["current_file"] = ""
         self.downloading = False
         return self.progress[course_id]
+
+    # -- Thumbnails --
+
+    async def download_thumbs(self, chat_id: int, file_list: list[dict],
+                              course_dir: str):
+        """Download Telegram-generated thumbnails for video/photo files."""
+        thumbs_dir = os.path.join(course_dir, ".thumbs")
+        os.makedirs(thumbs_dir, exist_ok=True)
+
+        entity = await self.client.get_entity(chat_id)
+
+        for file_info in file_list:
+            if file_info["type"] not in ("video", "photo"):
+                continue
+
+            thumb_path = os.path.join(thumbs_dir, file_info["filename"] + ".jpg")
+            if os.path.exists(thumb_path):
+                continue
+
+            try:
+                message = await self.client.get_messages(entity, ids=file_info["msg_id"])
+                if not message or not message.media:
+                    continue
+
+                # Download the smallest available thumb
+                thumb = await self.client.download_media(
+                    message, file=thumb_path, thumb=-1
+                )
+                if thumb:
+                    logger.info(f"Thumb saved: {file_info['filename']}")
+            except Exception as e:
+                logger.debug(f"No thumb for {file_info['filename']}: {e}")
 
     # -- Helpers --
 

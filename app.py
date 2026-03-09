@@ -124,14 +124,17 @@ def index():
     files = []
     pending_count = 0
 
+    thumbs_dir = os.path.join(course_dir, ".thumbs")
     for f in course.get("files", []):
         filepath = os.path.join(course_dir, f["filename"])
         on_server = os.path.exists(filepath) and os.path.getsize(filepath) > 0
         if not on_server:
             pending_count += 1
+        has_thumb = os.path.exists(os.path.join(thumbs_dir, f["filename"] + ".jpg"))
         files.append({
             **f,
             "on_server": on_server,
+            "has_thumb": has_thumb,
             "local_size": TelegramDownloader.format_size(
                 os.path.getsize(filepath)
             ) if on_server else "",
@@ -227,6 +230,13 @@ def add_course():
         }
         save_data(data)
 
+        # Download thumbs in background
+        course_dir = os.path.join(Config.DOWNLOAD_DIR, course_id)
+        asyncio.run_coroutine_threadsafe(
+            downloader.download_thumbs(chat_info["id"], files, course_dir),
+            loop,
+        )
+
         return jsonify({
             "ok": True,
             "course_id": course_id,
@@ -249,6 +259,14 @@ def rescan_course():
         course["files"] = files
         course["total_files"] = len(files)
         save_data(data)
+
+        # Download thumbs in background
+        course_dir = os.path.join(Config.DOWNLOAD_DIR, course_id)
+        asyncio.run_coroutine_threadsafe(
+            downloader.download_thumbs(course["chat_id"], files, course_dir),
+            loop,
+        )
+
         return jsonify({"ok": True, "total_files": len(files)})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
@@ -347,6 +365,16 @@ def preview_file(filename):
         return "", 404
     safe_name = os.path.basename(filename)
     filepath = os.path.join(Config.DOWNLOAD_DIR, course_id, safe_name)
+
+    # Check for Telegram-generated thumb (for videos and not-yet-downloaded photos)
+    thumb_path = os.path.join(Config.DOWNLOAD_DIR, course_id, ".thumbs", safe_name + ".jpg")
+    if os.path.exists(thumb_path):
+        ext = os.path.splitext(safe_name)[1].lower()
+        is_image = ext in (".jpg", ".jpeg", ".png", ".gif", ".webp")
+        # For videos always use thumb; for images use thumb only if original not on server
+        if not is_image or not os.path.exists(filepath):
+            return send_file(thumb_path, mimetype="image/jpeg")
+
     if not os.path.exists(filepath):
         return "", 404
     ext = os.path.splitext(safe_name)[1].lower()

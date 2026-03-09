@@ -92,7 +92,7 @@
                        onchange="updateSelection()">
 
                 <div class="file-preview">
-                    {% if f.type == 'photo' and f.on_server %}
+                    {% if (f.type == 'photo' and f.on_server) or (f.has_thumb) %}
                     <img src="{{ url_for('preview_file', filename=f.filename) }}"
                          alt="{{ f.filename }}" loading="lazy">
                     <div class="hover-preview">
