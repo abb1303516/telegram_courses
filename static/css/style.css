@@ -251,15 +251,26 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 10px 16px;
+    padding: 0 16px;
     background: var(--bg-card);
     border-radius: var(--radius);
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    margin-bottom: 12px;
+    margin-bottom: 0;
     flex-wrap: wrap;
     position: sticky;
     top: 0;
     z-index: 100;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.2s ease, opacity 0.2s ease, padding 0.2s ease, margin 0.2s ease;
+}
+
+.bulk-bar.visible {
+    max-height: 80px;
+    opacity: 1;
+    padding: 10px 16px;
+    margin-bottom: 12px;
 }
 
 .checkbox-label {

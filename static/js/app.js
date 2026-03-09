@@ -249,10 +249,10 @@ function updateSelection() {
     if (!bulkBar) return;
 
     if (checked.length > 0) {
-        bulkBar.style.display = 'flex';
+        bulkBar.classList.add('visible');
         selText.textContent = 'Выбрано: ' + checked.length;
     } else {
-        bulkBar.style.display = 'none';
+        bulkBar.classList.remove('visible');
         selText.textContent = 'Выбрать все';
     }
 
