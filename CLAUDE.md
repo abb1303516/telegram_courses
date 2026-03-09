@@ -20,23 +20,26 @@
 
 ```
 ├── CLAUDE.md                   # Этот файл
-├── app.py                      # Flask-приложение: роуты, API
-├── downloader.py               # Telethon-клиент: подключение, сканирование, скачивание
+├── app.py                      # Flask-приложение: роуты, API, файл-сервер
+├── downloader.py               # Telethon-клиент: подключение, сканирование, скачивание, thumbnails
 ├── config.py                   # Загрузка конфигурации из .env
 ├── requirements.txt            # Python-зависимости
 ├── .env.example                # Шаблон конфигурации
 ├── .gitignore
 ├── templates/
-│   ├── login.html              # Страница входа (пароль)
-│   ├── main.html               # Основная страница: список файлов курса
+│   ├── login.html              # Страница входа (пароль, с поддержкой сохранения в браузере)
+│   ├── main.html               # Основная страница: список файлов курса с превью
 │   └── admin.html              # Настройки: подключение TG, добавление курса
 ├── static/
-│   ├── css/style.css           # Стили
-│   └── js/app.js               # Клиентская логика
+│   ├── css/style.css           # Стили (CSS-переменные, адаптивный дизайн)
+│   └── js/app.js               # Клиентская логика (AJAX, чекбоксы, hover-превью)
 ├── deploy.sh                   # Скрипт деплоя
 ├── telegram-courses.service    # Systemd unit
 ├── nginx.conf                  # Конфиг nginx (location block)
 └── downloads/                  # Скачанные файлы (gitignored)
+    └── course_{id}/
+        ├── *.mp4, *.jpg, ...   # Медиафайлы
+        └── .thumbs/            # Кэш миниатюр из Telegram (~5-20 КБ каждый)
 ```
 
 ## Архитектурные решения
@@ -50,10 +53,26 @@ Flask синхронный, Telethon асинхронный. Решение: asy
 ### Один курс
 MVP рассчитан на один курс. `get_course()` возвращает первый курс из `data.json`. URL не содержат course_id.
 
+### Превью файлов
+- **Фото**: показывается оригинал если скачан, иначе Telegram-миниатюра
+- **Видео**: показывается Telegram-миниатюра (встроенный thumb из метаданных)
+- **Аудио/документы**: SVG-иконки по типу
+- Миниатюры скачиваются из Telegram при сканировании (rescan/add), кэшируются в `.thumbs/`. Не требует ffmpeg.
+- Hover-превью: position:fixed попап с JS-позиционированием (mouseenter/mouseleave)
+
+### Чекбоксы и массовые операции
+- Выбор файлов чекбоксами, "Выбрать все" с indeterminate-состоянием
+- Массовое скачивание на компьютер (последовательно, по одному с задержкой 500мс)
+- Массовое скачивание из TG на сервер
+- Массовое удаление
+
+### Приватные каналы
+Ссылки формата `t.me/c/CHANNEL_ID/...` обрабатываются отдельно: ID конвертируется с префиксом `-100` для Telethon.
+
 ## Деплой
 
-Сервер: `ssh wbcc` (тот же VDS что Songbook)
-Домен: `abbsongs.duckdns.org/tg/`
+Сервер: `ssh wbcc` (IP `185.221.213.215`, root, тот же VDS что Songbook)
+Домен: `https://abbsongs.duckdns.org/tg/`
 
 ```bash
 # На сервере — первый раз:
@@ -70,20 +89,22 @@ sudo systemctl enable --now telegram-courses
 sudo nginx -t && sudo systemctl reload nginx
 
 # Обновление:
-cd /opt/telegram-courses && ./deploy.sh
+ssh wbcc "cd /opt/telegram-courses && git pull && sudo systemctl restart telegram-courses"
 ```
 
 ## API-эндпоинты
 
 - `POST /api/telegram/connect` — подключение к Telegram
-- `POST /api/telegram/verify` — подтверждение кода
+- `POST /api/telegram/verify` — подтверждение кода `{code}`
 - `GET  /api/telegram/status` — статус подключения
 - `POST /api/course/add` — добавить курс `{link, title?}`
-- `POST /api/course/rescan` — пересканировать файлы
-- `POST /api/course/download` — скачать все новые из Telegram на сервер
+- `POST /api/course/rescan` — пересканировать файлы (+ фоновое скачивание thumbs)
+- `POST /api/course/download` — скачать только НОВЫЕ файлы из Telegram на сервер
+- `POST /api/file/download-tg` — скачать один файл из TG `{filename}`
+- `POST /api/file/delete` — удалить файл с сервера `{filename}`
 - `GET  /api/progress` — прогресс скачивания
 - `GET  /download/<filename>` — скачать файл на компьютер
-- `POST /api/file/delete` — удалить файл с сервера
+- `GET  /preview/<filename>` — превью (оригинал для фото, thumb для видео)
 
 ## Код-стайл
 
@@ -92,3 +113,8 @@ cd /opt/telegram-courses && ./deploy.sh
 - CSS: CSS-переменные, один файл
 - Интерфейс: русский
 - Комментарии: английский
+
+## Ограничения сервера
+
+- Мало места на диске — НЕ устанавливать тяжёлые пакеты (ffmpeg и т.п.)
+- Один процесс скачивания одновременно (блокировка `downloader.downloading`)
