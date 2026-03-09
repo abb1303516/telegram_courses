@@ -416,17 +416,60 @@ function openPlayer(filename, type) {
     title.textContent = filename;
 
     const src = './stream/' + encodeURIComponent(filename);
+    const tag = type === 'video' ? 'video' : 'audio';
+    const cls = type === 'video' ? 'player-video' : 'player-audio';
 
-    if (type === 'video') {
-        body.innerHTML = '<video controls autoplay class="player-video"><source src="' +
-            src + '">Браузер не поддерживает воспроизведение</video>';
-    } else {
-        body.innerHTML = '<audio controls autoplay class="player-audio"><source src="' +
-            src + '">Браузер не поддерживает воспроизведение</audio>';
-    }
+    body.innerHTML =
+        '<div class="player-controls-bar">' +
+            '<button class="player-skip" onclick="playerSkip(-10)">-10s</button>' +
+            '<button class="player-skip" onclick="playerSkip(-5)">-5s</button>' +
+            '<span class="player-time" id="playerTime">0:00 / 0:00</span>' +
+            '<button class="player-skip" onclick="playerSkip(5)">+5s</button>' +
+            '<button class="player-skip" onclick="playerSkip(10)">+10s</button>' +
+            '<select class="player-speed" onchange="playerSetSpeed(this.value)">' +
+                '<option value="0.5">0.5x</option>' +
+                '<option value="0.75">0.75x</option>' +
+                '<option value="1" selected>1x</option>' +
+                '<option value="1.25">1.25x</option>' +
+                '<option value="1.5">1.5x</option>' +
+                '<option value="2">2x</option>' +
+            '</select>' +
+        '</div>' +
+        '<' + tag + ' controls autoplay class="' + cls + '" id="playerMedia">' +
+            '<source src="' + src + '">' +
+        '</' + tag + '>';
+
+    var media = document.getElementById('playerMedia');
+    media.addEventListener('timeupdate', updatePlayerTime);
+    media.addEventListener('loadedmetadata', updatePlayerTime);
 
     overlay.classList.add('active');
     document.body.style.overflow = 'hidden';
+}
+
+function playerSkip(sec) {
+    var media = document.getElementById('playerMedia');
+    if (media) media.currentTime = Math.max(0, media.currentTime + sec);
+}
+
+function playerSetSpeed(rate) {
+    var media = document.getElementById('playerMedia');
+    if (media) media.playbackRate = parseFloat(rate);
+}
+
+function formatTime(s) {
+    if (isNaN(s)) return '0:00';
+    var m = Math.floor(s / 60);
+    var sec = Math.floor(s % 60);
+    return m + ':' + (sec < 10 ? '0' : '') + sec;
+}
+
+function updatePlayerTime() {
+    var media = document.getElementById('playerMedia');
+    var el = document.getElementById('playerTime');
+    if (media && el) {
+        el.textContent = formatTime(media.currentTime) + ' / ' + formatTime(media.duration);
+    }
 }
 
 function closePlayer(event) {
@@ -458,8 +501,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // Hover previews
     initHoverPreviews();
 
-    // Close player on Escape
+    // Player keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closePlayer();
+        var media = document.getElementById('playerMedia');
+        if (!media) return;
+
+        if (e.key === 'Escape') { closePlayer(); return; }
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+        switch (e.key) {
+            case 'ArrowLeft':  playerSkip(-5); e.preventDefault(); break;
+            case 'ArrowRight': playerSkip(5);  e.preventDefault(); break;
+            case ' ':
+                if (media.paused) media.play(); else media.pause();
+                e.preventDefault();
+                break;
+        }
     });
 });

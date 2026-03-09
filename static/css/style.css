@@ -549,6 +549,45 @@ body {
     outline: none;
 }
 
+.player-controls-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: #222;
+}
+
+.player-skip {
+    background: #333;
+    border: none;
+    color: #ccc;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.player-skip:hover { background: #444; color: #fff; }
+
+.player-time {
+    color: #aaa;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+    min-width: 100px;
+    text-align: center;
+}
+
+.player-speed {
+    background: #333;
+    border: 1px solid #444;
+    color: #ccc;
+    padding: 3px 6px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
 /* -- Mobile -- */
 @media (max-width: 640px) {
     .container { padding: 16px 12px; }
