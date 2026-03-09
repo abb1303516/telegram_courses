@@ -6,81 +6,83 @@
     <title>{{ course.title }} — Курсы</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
+<body class="main-page">
     <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-left">
-                <h1>{{ course.title }}</h1>
-                <span class="file-count">{{ files|length }} файлов</span>
-            </div>
-            <div class="header-right">
-                <button class="btn btn-secondary" id="btnRescan" onclick="rescan()">
-                    Обновить список
-                </button>
-                <a href="{{ url_for('admin') }}" class="btn btn-ghost" title="Настройки">
-                    Настройки
-                </a>
-                <a href="{{ url_for('logout') }}" class="btn btn-ghost">Выйти</a>
-            </div>
-        </header>
+        <!-- Toolbar: everything that does NOT scroll -->
+        <div class="toolbar">
+            <header class="header">
+                <div class="header-left">
+                    <h1>{{ course.title }}</h1>
+                    <span class="file-count">{{ files|length }} файлов</span>
+                </div>
+                <div class="header-right">
+                    <button class="btn btn-secondary" id="btnRescan" onclick="rescan()">
+                        Обновить список
+                    </button>
+                    <a href="{{ url_for('admin') }}" class="btn btn-ghost" title="Настройки">
+                        Настройки
+                    </a>
+                    <a href="{{ url_for('logout') }}" class="btn btn-ghost">Выйти</a>
+                </div>
+            </header>
 
-        {% if not tg_connected %}
-        <div class="alert alert-warn">
-            Telegram не подключён.
-            <a href="{{ url_for('admin') }}">Подключить</a>
-        </div>
-        {% endif %}
+            {% if not tg_connected %}
+            <div class="alert alert-warn">
+                Telegram не подключён.
+                <a href="{{ url_for('admin') }}">Подключить</a>
+            </div>
+            {% endif %}
 
-        <!-- Bulk actions bar (hidden until selection) -->
-        <div class="bulk-bar" id="bulkBar">
-            <label class="checkbox-label">
-                <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
-                <span id="selectionText">Выбрать все</span>
-            </label>
-            <div class="bulk-actions">
-                <button class="btn btn-primary btn-sm" onclick="bulkDownload()">
-                    Скачать на компьютер
-                </button>
-                <button class="btn btn-secondary btn-sm" onclick="bulkDownloadTG()">
-                    Скачать из TG
-                </button>
-                <button class="btn btn-danger btn-sm" onclick="bulkDelete()">
-                    Удалить с сервера
+            <!-- Bulk actions bar (hidden until selection) -->
+            <div class="bulk-bar" id="bulkBar">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                    <span id="selectionText">Выбрать все</span>
+                </label>
+                <div class="bulk-actions">
+                    <button class="btn btn-primary btn-sm" onclick="bulkDownload()">
+                        Скачать на компьютер
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="bulkDownloadTG()">
+                        Скачать из TG
+                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="bulkDelete()">
+                        Удалить с сервера
+                    </button>
+                </div>
+            </div>
+
+            <!-- Download from Telegram -->
+            {% if pending_count > 0 and tg_connected %}
+            <div class="action-bar">
+                <button class="btn btn-primary" id="btnDownloadAll" onclick="downloadAll()">
+                    Скачать новые из Telegram ({{ pending_count }})
                 </button>
             </div>
-        </div>
+            {% endif %}
 
-        <!-- Download from Telegram -->
-        {% if pending_count > 0 and tg_connected %}
-        <div class="action-bar">
-            <button class="btn btn-primary" id="btnDownloadAll" onclick="downloadAll()">
-                Скачать новые из Telegram ({{ pending_count }})
-            </button>
-        </div>
-        {% endif %}
-
-        <!-- Progress -->
-        <div class="progress-section" id="progressSection"
-             style="display:{{ 'block' if progress.get('status') == 'downloading' else 'none' }}">
-            <div class="progress-info">
-                <span id="progressText">
-                    {% if progress.get('status') == 'downloading' %}
-                    Скачивание: {{ progress.get('done', 0) }} / {{ progress.get('total', 0) }}
-                    {% endif %}
-                </span>
-                <span id="progressFile" class="progress-filename">
-                    {{ progress.get('current_file', '') }}
-                </span>
-            </div>
-            <div class="progress-bar">
-                <div class="progress-fill" id="progressBar"
-                     style="width:{{ (progress.get('done', 0) / progress.get('total', 1) * 100) if progress.get('total') else 0 }}%">
+            <!-- Progress -->
+            <div class="progress-section" id="progressSection"
+                 style="display:{{ 'block' if progress.get('status') == 'downloading' else 'none' }}">
+                <div class="progress-info">
+                    <span id="progressText">
+                        {% if progress.get('status') == 'downloading' %}
+                        Скачивание: {{ progress.get('done', 0) }} / {{ progress.get('total', 0) }}
+                        {% endif %}
+                    </span>
+                    <span id="progressFile" class="progress-filename">
+                        {{ progress.get('current_file', '') }}
+                    </span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressBar"
+                         style="width:{{ (progress.get('done', 0) / progress.get('total', 1) * 100) if progress.get('total') else 0 }}%">
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- File list -->
+        <!-- File list: this is the only part that scrolls -->
         {% if files %}
         <div class="file-list">
             {% for f in files %}
