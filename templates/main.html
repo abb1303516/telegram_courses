@@ -130,6 +130,10 @@
 
                 <div class="file-actions">
                     {% if f.on_server %}
+                    {% if f.type in ('video', 'audio') %}
+                    <button class="btn btn-ghost btn-sm"
+                            onclick="openPlayer('{{ f.filename }}', '{{ f.type }}')">Играть</button>
+                    {% endif %}
                     <a href="{{ url_for('download_file', filename=f.filename) }}"
                        class="btn btn-primary btn-sm">Скачать</a>
                     <button class="btn btn-danger btn-sm"
@@ -148,6 +152,17 @@
             <p class="text-muted">Нажмите "Обновить список" чтобы найти файлы в чате</p>
         </div>
         {% endif %}
+    </div>
+
+    <!-- Media Player Modal -->
+    <div class="player-overlay" id="playerOverlay" onclick="closePlayer(event)">
+        <div class="player-modal">
+            <div class="player-header">
+                <span class="player-title" id="playerTitle"></span>
+                <button class="player-close" onclick="closePlayer()">&times;</button>
+            </div>
+            <div class="player-body" id="playerBody"></div>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>

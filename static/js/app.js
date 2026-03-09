@@ -406,6 +406,44 @@ function initHoverPreviews() {
     });
 }
 
+/* -- Media Player -- */
+
+function openPlayer(filename, type) {
+    const overlay = document.getElementById('playerOverlay');
+    const body = document.getElementById('playerBody');
+    const title = document.getElementById('playerTitle');
+
+    title.textContent = filename;
+
+    const src = './stream/' + encodeURIComponent(filename);
+
+    if (type === 'video') {
+        body.innerHTML = '<video controls autoplay class="player-video"><source src="' +
+            src + '">Браузер не поддерживает воспроизведение</video>';
+    } else {
+        body.innerHTML = '<audio controls autoplay class="player-audio"><source src="' +
+            src + '">Браузер не поддерживает воспроизведение</audio>';
+    }
+
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function closePlayer(event) {
+    if (event && event.target !== document.getElementById('playerOverlay')) return;
+
+    const overlay = document.getElementById('playerOverlay');
+    const body = document.getElementById('playerBody');
+
+    // Stop playback
+    const media = body.querySelector('video, audio');
+    if (media) media.pause();
+
+    overlay.classList.remove('active');
+    body.innerHTML = '';
+    document.body.style.overflow = '';
+}
+
 /* -- Init -- */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -419,4 +457,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Hover previews
     initHoverPreviews();
+
+    // Close player on Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closePlayer();
+    });
 });

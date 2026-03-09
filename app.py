@@ -388,6 +388,29 @@ def preview_file(filename):
     return send_file(filepath, mimetype=mime)
 
 
+@app.route("/stream/<filename>")
+@login_required
+def stream_file(filename):
+    """Stream video/audio with Range request support."""
+    course_id, course, data = get_course()
+    if not course_id:
+        return "Курс не найден", 404
+    safe_name = os.path.basename(filename)
+    filepath = os.path.join(Config.DOWNLOAD_DIR, course_id, safe_name)
+    if not os.path.exists(filepath):
+        return "Файл не найден", 404
+
+    ext = os.path.splitext(safe_name)[1].lower()
+    mime_map = {
+        ".mp4": "video/mp4", ".mov": "video/quicktime",
+        ".mkv": "video/x-matroska", ".webm": "video/webm",
+        ".mp3": "audio/mpeg", ".ogg": "audio/ogg",
+        ".m4a": "audio/mp4", ".wav": "audio/wav",
+    }
+    mime = mime_map.get(ext, "application/octet-stream")
+    return send_file(filepath, mimetype=mime, conditional=True)
+
+
 @app.route("/api/file/delete", methods=["POST"])
 @login_required
 def delete_file():
