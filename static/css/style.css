@@ -1,0 +1,409 @@
+/* -- Reset & Variables -- */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+    --bg: #f7f6f3;
+    --bg-card: #ffffff;
+    --text: #1a1a1a;
+    --text-muted: #888;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --green: #16a34a;
+    --green-bg: #f0fdf4;
+    --yellow: #ca8a04;
+    --yellow-bg: #fefce8;
+    --red: #dc2626;
+    --red-bg: #fef2f2;
+    --border: #e5e5e5;
+    --radius: 8px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+}
+
+/* -- Container -- */
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 24px 20px;
+}
+
+/* -- Login -- */
+.login-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+}
+
+.login-card {
+    background: var(--bg-card);
+    border-radius: 12px;
+    padding: 48px 40px;
+    width: 100%;
+    max-width: 360px;
+    box-shadow: var(--shadow);
+    text-align: center;
+}
+
+.login-card h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.login-subtitle {
+    color: var(--text-muted);
+    margin-bottom: 24px;
+    font-size: 0.9rem;
+}
+
+.login-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 1rem;
+    margin-bottom: 16px;
+    text-align: center;
+    letter-spacing: 1px;
+    transition: border-color 0.2s;
+}
+
+.login-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+/* -- Header -- */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.header-left {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    min-width: 0;
+}
+
+.header h1 {
+    font-size: 1.4rem;
+    font-weight: 700;
+}
+
+.file-count {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.header-right {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* -- Buttons -- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+    white-space: nowrap;
+    color: var(--text);
+}
+
+.btn-primary {
+    background: var(--accent);
+    color: #fff;
+}
+.btn-primary:hover { background: var(--accent-hover); }
+
+.btn-secondary {
+    background: var(--border);
+    color: var(--text);
+}
+.btn-secondary:hover { background: #d4d4d4; }
+
+.btn-ghost {
+    background: transparent;
+    color: var(--text-muted);
+}
+.btn-ghost:hover { color: var(--text); background: var(--border); }
+
+.btn-danger {
+    background: transparent;
+    color: var(--red);
+    border: 1px solid var(--red);
+}
+.btn-danger:hover { background: var(--red-bg); }
+
+.btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+.btn-lg { padding: 12px 24px; font-size: 0.95rem; }
+.btn-full { width: 100%; justify-content: center; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* -- Cards -- */
+.card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+}
+
+.card h2 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+}
+
+.card-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+/* -- Alerts -- */
+.alert {
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+    margin-bottom: 16px;
+}
+
+.alert-error { background: var(--red-bg); color: var(--red); }
+.alert-warn { background: var(--yellow-bg); color: var(--yellow); }
+.alert-warn a { color: var(--accent); }
+
+/* -- Action bar -- */
+.action-bar {
+    margin-bottom: 16px;
+}
+
+/* -- Progress -- */
+.progress-section {
+    background: #eff6ff;
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+}
+
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 0.875rem;
+}
+
+.progress-filename {
+    color: var(--text-muted);
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.progress-bar {
+    background: var(--border);
+    border-radius: 100px;
+    height: 8px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 100px;
+    transition: width 0.5s ease;
+}
+
+/* -- File list -- */
+.file-list {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.file-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.1s;
+}
+
+.file-row:last-child { border-bottom: none; }
+.file-row:hover { background: #fafafa; }
+.file-pending { opacity: 0.5; }
+
+.file-icon {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    color: var(--text-muted);
+}
+
+.file-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.file-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.file-name {
+    font-weight: 600;
+    font-size: 0.875rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-meta {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.file-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+/* -- Badges -- */
+.badge, .badge-ok, .badge-warn, .badge-pending {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.badge-ok { background: var(--green-bg); color: var(--green); }
+.badge-warn { background: var(--yellow-bg); color: var(--yellow); }
+.badge-pending { background: #f0f0f0; color: var(--text-muted); }
+
+/* -- Forms -- */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    transition: border-color 0.15s;
+}
+
+.input:focus { outline: none; border-color: var(--accent); }
+.input-sm { width: 140px; }
+
+.inline-form { display: flex; gap: 10px; align-items: center; }
+
+/* -- Status messages -- */
+.status-msg {
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+    margin-top: 12px;
+}
+
+.status-msg.ok { background: var(--green-bg); color: var(--green); }
+.status-msg.error { background: var(--red-bg); color: var(--red); }
+.status-msg.loading { background: var(--yellow-bg); color: var(--yellow); }
+
+/* -- Info rows -- */
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.875rem;
+}
+.info-row:last-child { border-bottom: none; }
+
+/* -- Empty state -- */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+}
+
+/* -- Utilities -- */
+.text-muted { color: var(--text-muted); }
+.mt-16 { margin-top: 16px; }
+
+/* -- Delete animation -- */
+.file-row.removing {
+    opacity: 0;
+    transform: translateX(20px);
+    transition: all 0.3s ease;
+}
+
+/* -- Mobile -- */
+@media (max-width: 640px) {
+    .container { padding: 16px 12px; }
+
+    .header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .header-right {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .header-right .btn { flex: 1; justify-content: center; }
+
+    .file-row {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .file-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}

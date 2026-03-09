@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройки — Курсы</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-left">
+                <h1>Настройки</h1>
+            </div>
+            <div class="header-right">
+                {% if course %}
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">К файлам</a>
+                {% endif %}
+                <a href="{{ url_for('logout') }}" class="btn btn-ghost">Выйти</a>
+            </div>
+        </header>
+
+        <!-- Telegram connection -->
+        <div class="card">
+            <h2>Telegram</h2>
+            <div class="card-row">
+                <div>
+                    Статус:
+                    <span id="tgStatus" class="badge {{ 'badge-ok' if tg_connected else 'badge-warn' }}">
+                        {{ 'Подключён' if tg_connected else 'Не подключён' }}
+                    </span>
+                </div>
+                <button class="btn btn-primary" id="connectBtn" onclick="connectTelegram()">
+                    {{ 'Переподключить' if tg_connected else 'Подключить' }}
+                </button>
+            </div>
+
+            <div id="codeSection" style="display:none" class="mt-16">
+                <p>Код отправлен в Telegram. Введите его:</p>
+                <div class="inline-form">
+                    <input type="text" id="tgCode" placeholder="12345" class="input input-sm"
+                           maxlength="6" inputmode="numeric">
+                    <button class="btn btn-primary" onclick="verifyCode()">Подтвердить</button>
+                </div>
+            </div>
+
+            <div id="connectStatus" class="status-msg" style="display:none"></div>
+        </div>
+
+        <!-- Add course -->
+        {% if tg_connected %}
+        <div class="card">
+            <h2>{{ 'Курс' if course else 'Добавить курс' }}</h2>
+
+            {% if course %}
+            <div class="info-row">
+                <span class="text-muted">Название:</span>
+                <strong>{{ course.title }}</strong>
+            </div>
+            <div class="info-row">
+                <span class="text-muted">Файлов:</span>
+                <strong>{{ course.total_files }}</strong>
+            </div>
+            <div class="info-row">
+                <span class="text-muted">Ссылка:</span>
+                <span>{{ course.chat_link }}</span>
+            </div>
+            {% else %}
+            <div class="form-group">
+                <label>Ссылка на чат / канал</label>
+                <input type="text" id="chatLink" placeholder="https://t.me/channel или @username"
+                       class="input">
+                <small class="text-muted">t.me ссылка, @username или числовой ID</small>
+            </div>
+            <div class="form-group">
+                <label>Название (необязательно)</label>
+                <input type="text" id="courseTitle" placeholder="Мой курс" class="input">
+            </div>
+            <div id="addStatus" class="status-msg" style="display:none"></div>
+            <button class="btn btn-primary" id="addCourseBtn" onclick="addCourse()">
+                Добавить
+            </button>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
