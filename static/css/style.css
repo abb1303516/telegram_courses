@@ -239,6 +239,43 @@ body {
     transition: width 0.5s ease;
 }
 
+/* -- Bulk bar -- */
+.bulk-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.bulk-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
 /* -- File list -- */
 .file-list {
     background: var(--bg-card);
@@ -251,7 +288,7 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 16px;
+    padding: 10px 16px;
     border-bottom: 1px solid #f0f0f0;
     transition: background 0.1s;
 }
@@ -259,18 +296,50 @@ body {
 .file-row:last-child { border-bottom: none; }
 .file-row:hover { background: #fafafa; }
 .file-pending { opacity: 0.5; }
+.file-row.selected { background: #eff6ff; }
 
-.file-icon {
+.file-check {
     flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+/* -- File preview -- */
+.file-preview {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.file-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.preview-icon {
     width: 24px;
     height: 24px;
     color: var(--text-muted);
 }
 
-.file-icon svg {
+.preview-icon svg {
     width: 100%;
     height: 100%;
 }
+
+.preview-video { color: #7c3aed; }
+.preview-audio { color: #ea580c; }
+.preview-photo { color: #16a34a; }
+.preview-doc { color: #6b7280; }
 
 .file-info {
     flex: 1;

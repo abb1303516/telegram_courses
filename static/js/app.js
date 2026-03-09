@@ -197,7 +197,6 @@ async function downloadSingle(filename, btnEl) {
         const data = await api('./api/file/download-tg', { filename });
 
         if (data.ok) {
-            // File is now on server — reload to show download/delete buttons
             location.reload();
         } else {
             alert('Ошибка: ' + data.error);
@@ -224,17 +223,7 @@ async function deleteFile(filename, btnEl) {
         if (data.ok) {
             const row = btnEl.closest('.file-row');
             row.classList.add('removing');
-            setTimeout(() => {
-                row.classList.remove('file-on-server');
-                row.classList.add('file-pending');
-                row.classList.remove('removing');
-                const meta = row.querySelector('.file-meta');
-                if (meta) {
-                    meta.innerHTML = '<span class="badge-pending">в Telegram</span>';
-                }
-                const actions = row.querySelector('.file-actions');
-                if (actions) actions.innerHTML = '';
-            }, 300);
+            setTimeout(() => location.reload(), 400);
         } else {
             alert('Ошибка: ' + data.error);
         }
@@ -245,13 +234,162 @@ async function deleteFile(filename, btnEl) {
     btnEl.disabled = false;
 }
 
-/* -- Enter to submit code on admin page -- */
+/* ========== Checkbox Selection ========== */
+
+function getChecked() {
+    return Array.from(document.querySelectorAll('.file-check:checked')).map(c => c.value);
+}
+
+function updateSelection() {
+    const checked = getChecked();
+    const bulkBar = document.getElementById('bulkBar');
+    const selText = document.getElementById('selectionText');
+    const selectAll = document.getElementById('selectAll');
+
+    if (!bulkBar) return;
+
+    if (checked.length > 0) {
+        bulkBar.style.display = 'flex';
+        selText.textContent = 'Выбрано: ' + checked.length;
+    } else {
+        bulkBar.style.display = 'none';
+        selText.textContent = 'Выбрать все';
+    }
+
+    // Update select all checkbox state
+    const all = document.querySelectorAll('.file-check');
+    if (all.length > 0 && checked.length === all.length) {
+        selectAll.checked = true;
+        selectAll.indeterminate = false;
+    } else if (checked.length > 0) {
+        selectAll.checked = false;
+        selectAll.indeterminate = true;
+    } else {
+        selectAll.checked = false;
+        selectAll.indeterminate = false;
+    }
+
+    // Highlight selected rows
+    document.querySelectorAll('.file-row').forEach(row => {
+        const cb = row.querySelector('.file-check');
+        row.classList.toggle('selected', cb && cb.checked);
+    });
+}
+
+function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAll');
+    document.querySelectorAll('.file-check').forEach(cb => {
+        cb.checked = selectAll.checked;
+    });
+    updateSelection();
+}
+
+/* -- Bulk Download to Computer (sequential) -- */
+
+async function bulkDownload() {
+    const checked = getChecked();
+    // Filter to only files on server
+    const onServer = checked.filter(name => {
+        const row = document.querySelector('.file-row[data-filename="' + CSS.escape(name) + '"]');
+        return row && row.dataset.onServer === 'true';
+    });
+
+    if (onServer.length === 0) {
+        alert('Нет файлов на сервере для скачивания');
+        return;
+    }
+
+    // Download files one by one with a delay
+    for (let i = 0; i < onServer.length; i++) {
+        const a = document.createElement('a');
+        a.href = './download/' + encodeURIComponent(onServer[i]);
+        a.download = onServer[i];
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        // Small delay between downloads so browser doesn't block them
+        if (i < onServer.length - 1) {
+            await new Promise(r => setTimeout(r, 500));
+        }
+    }
+}
+
+/* -- Bulk Download from TG -- */
+
+async function bulkDownloadTG() {
+    const checked = getChecked();
+    const pending = checked.filter(name => {
+        const row = document.querySelector('.file-row[data-filename="' + CSS.escape(name) + '"]');
+        return row && row.dataset.onServer === 'false';
+    });
+
+    if (pending.length === 0) {
+        alert('Все выбранные файлы уже на сервере');
+        return;
+    }
+
+    if (!confirm('Скачать ' + pending.length + ' файлов из Telegram на сервер?')) return;
+
+    for (const filename of pending) {
+        const row = document.querySelector('.file-row[data-filename="' + CSS.escape(filename) + '"]');
+        const btn = row ? row.querySelector('.file-actions .btn') : null;
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Загрузка...';
+        }
+
+        try {
+            await api('./api/file/download-tg', { filename });
+        } catch (e) {
+            // continue with next file
+        }
+    }
+
+    location.reload();
+}
+
+/* -- Bulk Delete -- */
+
+async function bulkDelete() {
+    const checked = getChecked();
+    const onServer = checked.filter(name => {
+        const row = document.querySelector('.file-row[data-filename="' + CSS.escape(name) + '"]');
+        return row && row.dataset.onServer === 'true';
+    });
+
+    if (onServer.length === 0) {
+        alert('Нет файлов на сервере для удаления');
+        return;
+    }
+
+    if (!confirm('Удалить ' + onServer.length + ' файлов с сервера?')) return;
+
+    for (const filename of onServer) {
+        try {
+            await api('./api/file/delete', { filename });
+        } catch (e) {
+            // continue
+        }
+    }
+
+    location.reload();
+}
+
+/* -- Init -- */
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Enter to submit code on admin page
     const codeInput = document.getElementById('tgCode');
     if (codeInput) {
         codeInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') verifyCode();
         });
+    }
+
+    // Show bulk bar if any checkboxes exist
+    const checks = document.querySelectorAll('.file-check');
+    if (checks.length > 0) {
+        const bulkBar = document.getElementById('bulkBar');
+        if (bulkBar) bulkBar.style.display = 'none';
     }
 });

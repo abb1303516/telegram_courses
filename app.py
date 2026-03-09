@@ -338,6 +338,28 @@ def download_file(filename):
     return send_file(filepath, as_attachment=True, download_name=safe_name)
 
 
+@app.route("/preview/<filename>")
+@login_required
+def preview_file(filename):
+    """Serve image/video thumbnail for preview."""
+    course_id, course, data = get_course()
+    if not course_id:
+        return "", 404
+    safe_name = os.path.basename(filename)
+    filepath = os.path.join(Config.DOWNLOAD_DIR, course_id, safe_name)
+    if not os.path.exists(filepath):
+        return "", 404
+    ext = os.path.splitext(safe_name)[1].lower()
+    mime_map = {
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp",
+    }
+    mime = mime_map.get(ext)
+    if not mime:
+        return "", 404
+    return send_file(filepath, mimetype=mime)
+
+
 @app.route("/api/file/delete", methods=["POST"])
 @login_required
 def delete_file():
