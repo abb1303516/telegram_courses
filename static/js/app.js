@@ -375,6 +375,37 @@ async function bulkDelete() {
     location.reload();
 }
 
+/* -- Hover Preview -- */
+
+function initHoverPreviews() {
+    document.querySelectorAll('.file-preview').forEach(el => {
+        const popup = el.querySelector('.hover-preview');
+        if (!popup) return;
+
+        el.addEventListener('mouseenter', (e) => {
+            const rect = el.getBoundingClientRect();
+            popup.style.display = 'block';
+            // Position to the right of thumbnail
+            let left = rect.right + 12;
+            let top = rect.top + rect.height / 2 - popup.offsetHeight / 2;
+            // Keep within viewport
+            if (left + popup.offsetWidth > window.innerWidth - 16) {
+                left = rect.left - popup.offsetWidth - 12;
+            }
+            if (top < 8) top = 8;
+            if (top + popup.offsetHeight > window.innerHeight - 8) {
+                top = window.innerHeight - popup.offsetHeight - 8;
+            }
+            popup.style.left = left + 'px';
+            popup.style.top = top + 'px';
+        });
+
+        el.addEventListener('mouseleave', () => {
+            popup.style.display = 'none';
+        });
+    });
+}
+
 /* -- Init -- */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -386,10 +417,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Show bulk bar if any checkboxes exist
-    const checks = document.querySelectorAll('.file-check');
-    if (checks.length > 0) {
-        const bulkBar = document.getElementById('bulkBar');
-        if (bulkBar) bulkBar.style.display = 'none';
-    }
+    // Hover previews
+    initHoverPreviews();
 });
