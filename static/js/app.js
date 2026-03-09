@@ -187,6 +187,30 @@ function pollProgress() {
     }, 2000);
 }
 
+/* -- Download Single File from TG (main page) -- */
+
+async function downloadSingle(filename, btnEl) {
+    btnEl.disabled = true;
+    btnEl.textContent = 'Загрузка...';
+
+    try {
+        const data = await api('./api/file/download-tg', { filename });
+
+        if (data.ok) {
+            // File is now on server — reload to show download/delete buttons
+            location.reload();
+        } else {
+            alert('Ошибка: ' + data.error);
+            btnEl.disabled = false;
+            btnEl.textContent = 'Скачать из TG';
+        }
+    } catch (e) {
+        alert('Ошибка: ' + e.message);
+        btnEl.disabled = false;
+        btnEl.textContent = 'Скачать из TG';
+    }
+}
+
 /* -- Delete File (main page) -- */
 
 async function deleteFile(filename, btnEl) {

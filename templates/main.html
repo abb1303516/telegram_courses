@@ -96,6 +96,9 @@
                        class="btn btn-primary btn-sm">Скачать</a>
                     <button class="btn btn-danger btn-sm"
                             onclick="deleteFile('{{ f.filename }}', this)">Удалить</button>
+                    {% else %}
+                    <button class="btn btn-secondary btn-sm"
+                            onclick="downloadSingle('{{ f.filename }}', this)">Скачать из TG</button>
                     {% endif %}
                 </div>
             </div>

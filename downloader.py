@@ -169,6 +169,19 @@ class TelegramDownloader:
 
     # -- Downloading --
 
+    async def download_single(self, chat_id: int, msg_id: int,
+                              filename: str, course_dir: str):
+        """Download a single file by message ID."""
+        os.makedirs(course_dir, exist_ok=True)
+        filepath = os.path.join(course_dir, filename)
+        entity = await self.client.get_entity(chat_id)
+        message = await self.client.get_messages(entity, ids=msg_id)
+        if message and message.media:
+            await self.client.download_media(message, file=filepath)
+            logger.info(f"Downloaded: {filename}")
+            return True
+        return False
+
     async def download_course(self, course_id: str, chat_id: int,
                               file_list: list[dict], course_dir: str):
         """Download all files from file_list. Updates self.progress as it goes."""

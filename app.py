@@ -257,6 +257,7 @@ def rescan_course():
 @app.route("/api/course/download", methods=["POST"])
 @login_required
 def download_from_tg():
+    """Download only NEW files (not yet on server) from Telegram."""
     course_id, course, data = get_course()
     if not course:
         return jsonify({"ok": False, "error": "Курс не найден"}), 404
@@ -264,11 +265,52 @@ def download_from_tg():
         return jsonify({"ok": False, "error": "Загрузка уже идёт"}), 400
 
     course_dir = os.path.join(Config.DOWNLOAD_DIR, course_id)
+
+    # Filter to only files not on server
+    pending = []
+    for f in course["files"]:
+        filepath = os.path.join(course_dir, f["filename"])
+        if not (os.path.exists(filepath) and os.path.getsize(filepath) > 0):
+            pending.append(f)
+
+    if not pending:
+        return jsonify({"ok": False, "error": "Нет новых файлов для скачивания"}), 400
+
     asyncio.run_coroutine_threadsafe(
-        downloader.download_course(course_id, course["chat_id"], course["files"], course_dir),
+        downloader.download_course(course_id, course["chat_id"], pending, course_dir),
         loop,
     )
     return jsonify({"ok": True})
+
+
+@app.route("/api/file/download-tg", methods=["POST"])
+@login_required
+def download_single_from_tg():
+    """Download a single file from Telegram to server."""
+    course_id, course, data = get_course()
+    if not course_id:
+        return jsonify({"ok": False, "error": "Курс не найден"}), 404
+    if downloader.downloading:
+        return jsonify({"ok": False, "error": "Загрузка уже идёт"}), 400
+
+    filename = request.json.get("filename", "")
+    file_info = None
+    for f in course.get("files", []):
+        if f["filename"] == filename:
+            file_info = f
+            break
+
+    if not file_info:
+        return jsonify({"ok": False, "error": "Файл не найден в метаданных"}), 404
+
+    course_dir = os.path.join(Config.DOWNLOAD_DIR, course_id)
+    try:
+        run_async(downloader.download_single(
+            course["chat_id"], file_info["msg_id"], filename, course_dir
+        ))
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/api/progress")
