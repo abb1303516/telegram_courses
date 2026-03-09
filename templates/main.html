@@ -95,6 +95,10 @@
                     {% if f.type == 'photo' and f.on_server %}
                     <img src="{{ url_for('preview_file', filename=f.filename) }}"
                          alt="{{ f.filename }}" loading="lazy">
+                    <div class="hover-preview">
+                        <img src="{{ url_for('preview_file', filename=f.filename) }}"
+                             alt="{{ f.filename }}">
+                    </div>
                     {% elif f.type == 'video' %}
                     <div class="preview-icon preview-video">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
