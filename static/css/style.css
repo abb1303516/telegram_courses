@@ -248,9 +248,12 @@ body {
     padding: 10px 16px;
     background: var(--bg-card);
     border-radius: var(--radius);
-    box-shadow: var(--shadow);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     margin-bottom: 12px;
     flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 
 .checkbox-label {
