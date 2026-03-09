@@ -122,6 +122,20 @@ class TelegramDownloader:
 
         files.sort(key=lambda f: f["date"])
 
+        # Deduplicate filenames by appending _msgID
+        seen = {}
+        for f in files:
+            name = f["filename"]
+            if name in seen:
+                seen[name].append(f)
+            else:
+                seen[name] = [f]
+        for name, group in seen.items():
+            if len(group) > 1:
+                base, ext = os.path.splitext(name)
+                for f in group:
+                    f["filename"] = f"{base}_{f['msg_id']}{ext}"
+
         for i, f in enumerate(files, 1):
             f["index"] = i
 
