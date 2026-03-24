@@ -487,6 +487,61 @@ function closePlayer(event) {
     document.body.style.overflow = '';
 }
 
+/* -- Sorting -- */
+
+function toggleSort(field, btn) {
+    const allBtns = document.querySelectorAll('.sort-btn');
+    const wasActive = btn.classList.contains('active');
+    let dir = btn.dataset.dir || 'asc';
+
+    if (wasActive) {
+        dir = dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        allBtns.forEach(b => { b.classList.remove('active'); b.textContent = b.textContent.replace(/ [▲▼]/g, ''); });
+        dir = field === 'date' ? 'asc' : 'asc';
+    }
+
+    btn.dataset.dir = dir;
+    btn.classList.add('active');
+    // Update arrow in button text
+    const label = btn.textContent.replace(/ [▲▼]/g, '').trim();
+    btn.innerHTML = label + ' ' + (dir === 'asc' ? '&#9650;' : '&#9660;');
+
+    sortFiles(field, dir);
+}
+
+function sortFiles(field, dir) {
+    const list = document.querySelector('.file-list');
+    if (!list) return;
+    const rows = Array.from(list.querySelectorAll('.file-row'));
+
+    rows.sort((a, b) => {
+        let va, vb;
+        switch (field) {
+            case 'date':
+                va = a.dataset.date || '';
+                vb = b.dataset.date || '';
+                break;
+            case 'name':
+                va = a.dataset.filename.toLowerCase();
+                vb = b.dataset.filename.toLowerCase();
+                break;
+            case 'size':
+                va = parseInt(a.dataset.size) || 0;
+                vb = parseInt(b.dataset.size) || 0;
+                return dir === 'asc' ? va - vb : vb - va;
+            case 'type':
+                va = a.dataset.type || '';
+                vb = b.dataset.type || '';
+                break;
+        }
+        const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+        return dir === 'asc' ? cmp : -cmp;
+    });
+
+    rows.forEach(row => list.appendChild(row));
+}
+
 /* -- Init -- */
 
 document.addEventListener('DOMContentLoaded', () => {

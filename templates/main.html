@@ -82,13 +82,23 @@
             </div>
         </div>
 
-        <!-- File list: this is the only part that scrolls -->
+        <!-- Sort bar + File list -->
         {% if files %}
+        <div class="sort-bar">
+            <span class="sort-label">Сортировка:</span>
+            <button class="sort-btn active" data-sort="date" data-dir="asc" onclick="toggleSort('date', this)">Дата &#9650;</button>
+            <button class="sort-btn" data-sort="name" onclick="toggleSort('name', this)">Имя</button>
+            <button class="sort-btn" data-sort="size" onclick="toggleSort('size', this)">Размер</button>
+            <button class="sort-btn" data-sort="type" onclick="toggleSort('type', this)">Тип</button>
+        </div>
         <div class="file-list">
             {% for f in files %}
             <div class="file-row {{ 'file-on-server' if f.on_server else 'file-pending' }}"
                  data-filename="{{ f.filename }}"
-                 data-on-server="{{ 'true' if f.on_server else 'false' }}">
+                 data-on-server="{{ 'true' if f.on_server else 'false' }}"
+                 data-date="{{ f.date }}"
+                 data-size="{{ f.size }}"
+                 data-type="{{ f.type }}">
 
                 <input type="checkbox" class="file-check" value="{{ f.filename }}"
                        onchange="updateSelection()">
@@ -124,6 +134,7 @@
                     <span class="file-name" title="{{ f.filename }}">{{ f.filename }}</span>
                     <span class="file-meta">
                         {{ f.local_size if f.on_server else f.size_fmt }}
+                        <span class="file-date">{{ f.date_fmt }}</span>
                         {% if not f.on_server %}
                         <span class="badge-pending">в Telegram</span>
                         {% endif %}

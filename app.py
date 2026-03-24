@@ -131,10 +131,20 @@ def index():
         if not on_server:
             pending_count += 1
         has_thumb = os.path.exists(os.path.join(thumbs_dir, f["filename"] + ".jpg"))
+        # Format date for display
+        date_str = f.get("date", "")
+        date_fmt = ""
+        if date_str:
+            try:
+                dt = datetime.fromisoformat(date_str)
+                date_fmt = dt.strftime("%d.%m.%Y")
+            except (ValueError, TypeError):
+                pass
         files.append({
             **f,
             "on_server": on_server,
             "has_thumb": has_thumb,
+            "date_fmt": date_fmt,
             "local_size": TelegramDownloader.format_size(
                 os.path.getsize(filepath)
             ) if on_server else "",

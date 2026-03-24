@@ -316,8 +316,8 @@ body.main-page .container {
 .file-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 16px;
+    gap: 10px;
+    padding: 6px 12px;
     border-bottom: 1px solid #f0f0f0;
     transition: background 0.1s;
 }
@@ -338,9 +338,9 @@ body.main-page .container {
 /* -- File preview -- */
 .file-preview {
     flex-shrink: 0;
-    width: 64px;
-    height: 64px;
-    border-radius: 6px;
+    width: 48px;
+    height: 48px;
+    border-radius: 5px;
     background: #f0f0f0;
     display: flex;
     align-items: center;
@@ -378,8 +378,8 @@ body.main-page .container {
 }
 
 .preview-icon {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     color: var(--text-muted);
 }
 
@@ -417,11 +417,45 @@ body.main-page .container {
     gap: 8px;
 }
 
+.file-date {
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
 .file-actions {
     display: flex;
     gap: 6px;
     flex-shrink: 0;
 }
+
+/* -- Sort bar -- */
+.sort-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    flex-shrink: 0;
+}
+
+.sort-label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-right: 2px;
+}
+
+.sort-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.sort-btn:hover { color: var(--text); border-color: #ccc; }
+.sort-btn.active { color: var(--accent); border-color: var(--accent); font-weight: 600; }
 
 /* -- Badges -- */
 .badge, .badge-ok, .badge-warn, .badge-pending {
