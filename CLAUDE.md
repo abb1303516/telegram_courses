@@ -92,6 +92,9 @@ Telegram может давать разным файлам одинаковые 
 - `.file-list` (`flex: 1; overflow-y: auto; min-height: 0`) — единственная прокручиваемая область
 - Bulk bar показывается/скрывается через `max-height/opacity` transition (не `display:none`, т.к. ломает layout)
 
+### Прокси для Telegram
+Telegram заблокирован в РФ с марта 2026. Telethon подключается через HTTP-прокси (Squid на голландском VDS `188.208.103.65:3128` — тот же, что используется в проектах vpn_chain и kinescope-downloader). Настройка в `.env`: `PROXY=http://host:port`. Поддерживаются HTTP и SOCKS5. Парсинг URL в `downloader.py:_parse_proxy()`, передаётся в `TelegramClient(proxy=...)` через `python-socks`.
+
 ### Приватные каналы
 Ссылки формата `t.me/c/CHANNEL_ID/...` обрабатываются отдельно: ID конвертируется с префиксом `-100` для Telethon.
 
