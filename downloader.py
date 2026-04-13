@@ -211,18 +211,53 @@ class TelegramDownloader:
 
     # -- Downloading --
 
-    async def download_single(self, chat_id: int, msg_id: int,
-                              filename: str, course_dir: str):
-        """Download a single file by message ID."""
+    def _make_progress_cb(self, course_id: str):
+        """Create a callback for Telethon download_media to track byte progress."""
+        def callback(received, total):
+            prog = self.progress.get(course_id)
+            if prog:
+                prog["bytes_done"] = received
+                prog["bytes_total"] = total
+        return callback
+
+    async def download_single(self, course_id: str, chat_id: int, msg_id: int,
+                              filename: str, file_size: int, course_dir: str):
+        """Download a single file by message ID (async, updates progress)."""
+        if self.downloading:
+            raise RuntimeError("Another download is already in progress")
+
+        self.downloading = True
         os.makedirs(course_dir, exist_ok=True)
         filepath = os.path.join(course_dir, filename)
-        entity = await self.client.get_entity(chat_id)
-        message = await self.client.get_messages(entity, ids=msg_id)
-        if message and message.media:
-            await self.client.download_media(message, file=filepath, part_size_kb=512)
-            logger.info(f"Downloaded: {filename}")
-            return True
-        return False
+
+        self.progress[course_id] = {
+            "total": 1,
+            "done": 0,
+            "current_file": filename,
+            "status": "downloading",
+            "bytes_done": 0,
+            "bytes_total": file_size,
+            "errors": [],
+        }
+
+        try:
+            entity = await self.client.get_entity(chat_id)
+            message = await self.client.get_messages(entity, ids=msg_id)
+            if message and message.media:
+                await self.client.download_media(
+                    message, file=filepath, progress_callback=self._make_progress_cb(course_id),
+                )
+                logger.info(f"Downloaded: {filename}")
+                self.progress[course_id]["done"] = 1
+        except Exception as e:
+            logger.error(f"Error downloading {filename}: {e}")
+            self.progress[course_id]["errors"].append(
+                {"file": filename, "error": str(e)}
+            )
+
+        self.progress[course_id]["status"] = "completed"
+        self.progress[course_id]["current_file"] = ""
+        self.downloading = False
 
     async def download_course(self, course_id: str, chat_id: int,
                               file_list: list[dict], course_dir: str):
@@ -239,6 +274,8 @@ class TelegramDownloader:
             "done": 0,
             "current_file": "",
             "status": "downloading",
+            "bytes_done": 0,
+            "bytes_total": 0,
             "errors": [],
         }
 
@@ -255,11 +292,16 @@ class TelegramDownloader:
                     continue
 
             self.progress[course_id]["current_file"] = filename
+            self.progress[course_id]["bytes_done"] = 0
+            self.progress[course_id]["bytes_total"] = file_info.get("size", 0)
 
             try:
                 message = await self.client.get_messages(entity, ids=file_info["msg_id"])
                 if message and message.media:
-                    await self.client.download_media(message, file=filepath, part_size_kb=512)
+                    await self.client.download_media(
+                        message, file=filepath,
+                        progress_callback=self._make_progress_cb(course_id),
+                    )
                     logger.info(f"Downloaded: {filename}")
             except Exception as e:
                 logger.error(f"Error downloading {filename}: {e}")

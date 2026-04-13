@@ -155,23 +155,54 @@ async function downloadAll() {
 
 /* -- Progress Polling -- */
 
+function formatBytes(bytes) {
+    if (!bytes || bytes === 0) return '0 Б';
+    var units = ['Б', 'КБ', 'МБ', 'ГБ'];
+    var i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+}
+
 function pollProgress() {
+    var section = document.getElementById('progressSection');
+    if (section) section.style.display = 'block';
+
     const interval = setInterval(async () => {
         try {
             const res = await fetch('./api/progress');
             const data = await res.json();
-            const pct = data.total > 0 ? (data.done / data.total * 100) : 0;
+
+            if (data.status === 'idle') return;
+
+            // Byte-level progress for current file
+            var bytesPct = 0;
+            var bytesText = '';
+            if (data.bytes_total > 0) {
+                bytesPct = data.bytes_done / data.bytes_total * 100;
+                bytesText = formatBytes(data.bytes_done) + ' / ' + formatBytes(data.bytes_total);
+            }
+
+            // File-level progress (for bulk downloads)
+            var fileText = '';
+            if (data.total > 1) {
+                fileText = 'Файл ' + (data.done + 1) + ' из ' + data.total + ': ';
+            }
 
             document.getElementById('progressText').textContent =
-                'Скачивание: ' + data.done + ' / ' + data.total;
+                fileText + (bytesText || 'Скачивание...');
             document.getElementById('progressFile').textContent =
                 data.current_file || '';
+
+            // Progress bar: for single file use bytes, for bulk use file count
+            var pct = data.total > 1
+                ? ((data.done + bytesPct / 100) / data.total * 100)
+                : bytesPct;
             document.getElementById('progressBar').style.width = pct + '%';
 
             if (data.status === 'completed') {
                 clearInterval(interval);
+                document.getElementById('progressBar').style.width = '100%';
                 document.getElementById('progressText').textContent =
-                    'Готово! Скачано ' + data.done + ' файлов.';
+                    'Готово! Скачано ' + data.done + (data.total > 1 ? ' файлов.' : ' файл.');
                 document.getElementById('progressFile').textContent = '';
 
                 if (data.errors && data.errors.length > 0) {
@@ -184,7 +215,7 @@ function pollProgress() {
         } catch (e) {
             // ignore polling errors
         }
-    }, 2000);
+    }, 1000);
 }
 
 /* -- Download Single File from TG (main page) -- */
@@ -197,7 +228,7 @@ async function downloadSingle(filename, btnEl) {
         const data = await api('./api/file/download-tg', { filename });
 
         if (data.ok) {
-            location.reload();
+            pollProgress();
         } else {
             alert('Ошибка: ' + data.error);
             btnEl.disabled = false;

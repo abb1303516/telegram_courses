@@ -332,13 +332,14 @@ def download_single_from_tg():
         return jsonify({"ok": False, "error": "Файл не найден в метаданных"}), 404
 
     course_dir = os.path.join(Config.DOWNLOAD_DIR, course_id)
-    try:
-        run_async(downloader.download_single(
-            course["chat_id"], file_info["msg_id"], filename, course_dir
-        ))
-        return jsonify({"ok": True})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+    asyncio.run_coroutine_threadsafe(
+        downloader.download_single(
+            course_id, course["chat_id"], file_info["msg_id"],
+            filename, file_info.get("size", 0), course_dir
+        ),
+        loop,
+    )
+    return jsonify({"ok": True})
 
 
 @app.route("/api/progress")
