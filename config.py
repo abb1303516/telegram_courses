@@ -15,3 +15,4 @@ class Config:
     DOWNLOAD_DIR = os.path.abspath(os.getenv("DOWNLOAD_DIR", "./downloads"))
     DATA_FILE = os.path.abspath(os.getenv("DATA_FILE", "./data.json"))
     URL_PREFIX = os.getenv("URL_PREFIX", "")
+    PROXY = os.getenv("PROXY", "")  # e.g. http://host:port or socks5://user:pass@host:port

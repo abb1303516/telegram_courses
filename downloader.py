@@ -5,6 +5,7 @@ Handles connecting, listing chats, and downloading media files.
 
 import os
 import logging
+from urllib.parse import urlparse
 from datetime import datetime
 
 from telethon import TelegramClient
@@ -31,12 +32,38 @@ class TelegramDownloader:
 
     # -- Connection --
 
+    @staticmethod
+    def _parse_proxy(proxy_url: str) -> dict | None:
+        """Parse proxy URL into Telethon proxy dict."""
+        if not proxy_url:
+            return None
+        parsed = urlparse(proxy_url)
+        scheme = parsed.scheme.lower()
+        proxy_type = {
+            "http": 2, "https": 2,       # python-socks: HTTP=2
+            "socks5": 3, "socks4": 1,    # python-socks: SOCKS4=1, SOCKS5=3
+        }.get(scheme)
+        if proxy_type is None:
+            logger.warning(f"Unknown proxy scheme: {scheme}")
+            return None
+        return {
+            "proxy_type": proxy_type,
+            "addr": parsed.hostname,
+            "port": parsed.port or (1080 if scheme.startswith("socks") else 3128),
+            "username": parsed.username,
+            "password": parsed.password,
+        }
+
     async def connect(self):
         if self.client and self.connected:
             return True
 
         session_path = os.path.join(os.path.dirname(__file__), "session")
-        self.client = TelegramClient(session_path, Config.API_ID, Config.API_HASH)
+        proxy = self._parse_proxy(Config.PROXY)
+        if proxy:
+            logger.info(f"Using proxy: {proxy['addr']}:{proxy['port']}")
+        self.client = TelegramClient(session_path, Config.API_ID, Config.API_HASH,
+                                     proxy=proxy)
         await self.client.connect()
 
         if await self.client.is_user_authorized():
