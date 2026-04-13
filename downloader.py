@@ -40,8 +40,8 @@ class TelegramDownloader:
         parsed = urlparse(proxy_url)
         scheme = parsed.scheme.lower()
         proxy_type = {
-            "http": 2, "https": 2,       # python-socks: HTTP=2
-            "socks5": 3, "socks4": 1,    # python-socks: SOCKS4=1, SOCKS5=3
+            "http": 3, "https": 3,       # python-socks: HTTP=3
+            "socks5": 2, "socks4": 1,    # python-socks: SOCKS4=1, SOCKS5=2
         }.get(scheme)
         if proxy_type is None:
             logger.warning(f"Unknown proxy scheme: {scheme}")
