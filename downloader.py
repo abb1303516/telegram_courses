@@ -219,7 +219,7 @@ class TelegramDownloader:
         entity = await self.client.get_entity(chat_id)
         message = await self.client.get_messages(entity, ids=msg_id)
         if message and message.media:
-            await self.client.download_media(message, file=filepath)
+            await self.client.download_media(message, file=filepath, part_size_kb=512)
             logger.info(f"Downloaded: {filename}")
             return True
         return False
@@ -259,7 +259,7 @@ class TelegramDownloader:
             try:
                 message = await self.client.get_messages(entity, ids=file_info["msg_id"])
                 if message and message.media:
-                    await self.client.download_media(message, file=filepath)
+                    await self.client.download_media(message, file=filepath, part_size_kb=512)
                     logger.info(f"Downloaded: {filename}")
             except Exception as e:
                 logger.error(f"Error downloading {filename}: {e}")
