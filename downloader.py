@@ -55,7 +55,7 @@ class TelegramDownloader:
         }
 
     async def connect(self):
-        if self.client and self.connected:
+        if self.client and self.connected and self.client.is_connected():
             return True
 
         session_path = os.path.join(os.path.dirname(__file__), "session")
@@ -73,6 +73,23 @@ class TelegramDownloader:
 
         logger.warning("Telegram client not authorized. Need to send code.")
         return False
+
+    async def ensure_connected(self):
+        """Reconnect if Telethon's TCP connection dropped. Call before every TG op."""
+        if not self.client:
+            await self.connect()
+            return
+        if not self.client.is_connected():
+            logger.warning("Telegram connection dropped, reconnecting...")
+            self.connected = False
+            try:
+                await self.client.connect()
+                if await self.client.is_user_authorized():
+                    self.connected = True
+                    logger.info("Telegram reconnected.")
+            except Exception as e:
+                logger.error(f"Reconnect failed: {e}")
+                raise
 
     async def send_code(self):
         if not self.client:
@@ -95,6 +112,7 @@ class TelegramDownloader:
 
     async def resolve_chat(self, chat_link: str):
         """Resolve a chat link/username to entity info."""
+        await self.ensure_connected()
         if not self.connected:
             raise RuntimeError("Not connected to Telegram")
 
@@ -134,6 +152,7 @@ class TelegramDownloader:
 
     async def scan_chat(self, chat_id: int):
         """Scan a chat and return a list of downloadable media files."""
+        await self.ensure_connected()
         if not self.connected:
             raise RuntimeError("Not connected to Telegram")
 
@@ -226,6 +245,7 @@ class TelegramDownloader:
         if self.downloading:
             raise RuntimeError("Another download is already in progress")
 
+        await self.ensure_connected()
         self.downloading = True
         os.makedirs(course_dir, exist_ok=True)
         filepath = os.path.join(course_dir, filename)
@@ -265,6 +285,7 @@ class TelegramDownloader:
         if self.downloading:
             raise RuntimeError("Another download is already in progress")
 
+        await self.ensure_connected()
         self.downloading = True
         os.makedirs(course_dir, exist_ok=True)
 
@@ -321,6 +342,7 @@ class TelegramDownloader:
     async def download_thumbs(self, chat_id: int, file_list: list[dict],
                               course_dir: str):
         """Download Telegram-generated thumbnails for video/photo files."""
+        await self.ensure_connected()
         thumbs_dir = os.path.join(course_dir, ".thumbs")
         os.makedirs(thumbs_dir, exist_ok=True)
 
