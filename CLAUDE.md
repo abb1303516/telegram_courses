@@ -92,28 +92,38 @@ Telegram может давать разным файлам одинаковые 
 - `.file-list` (`flex: 1; overflow-y: auto; min-height: 0`) — единственная прокручиваемая область
 - Bulk bar показывается/скрывается через `max-height/opacity` transition (не `display:none`, т.к. ломает layout)
 
-### Обход блокировки Telegram (AmneziaWG туннель)
-Telegram заблокирован в РФ с марта 2026 на уровне DPI/ТСПУ. Все IP-подсети TG режутся. SSH- и HTTP-прокси на голландский VDS работали, но скорость NL→RU катастрофически низкая (~30 КБ/с) — маршрут шейпится.
+### Хостинг приложения
+Приложение перенесено с RU VDS на **NL VDS** (`188.208.103.65`, Hostkey B.v., Нидерланды). Причина: Telegram заблокирован в РФ с марта 2026 (DPI/ТСПУ), маршрут NL→RU зашейплен до 30 КБ/с. На NL — прямой быстрый доступ к Telegram (75 МБ/с) без прокси и туннелей.
 
-**Решение:** обфусцированный AmneziaWG-туннель (не ловится DPI).
-- На голландском VDS (`188.208.103.65`) уже работает AmneziaWG-сервер `amnezia-awg2` (UDP 48588).
-- На российском VDS запущен Docker-контейнер `awg0` (образ `amneziavpn/amneziawg-go:latest`) с userspace-реализацией AmneziaWG. Host-сеть, `NET_ADMIN`, `/dev/net/tun`, автозапуск `--restart unless-stopped`.
-- Конфиг в `/etc/amneziawg/awg0.conf` (создан из `vpn://` профиля приложения AmneziaVPN). `Table = off` — awg-quick не трогает default route.
-- **Узкая маршрутизация**: через туннель идут только IP-диапазоны Telegram (`149.154.160.0/20`, `91.108.4.0/22`, `91.108.8.0/22`, `91.108.16.0/22`, `91.108.56.0/22`, `95.161.64.0/20`) — остальной трафик сервера (nginx, git, apt) напрямую.
-- sysctl `net.ipv4.conf.all.src_valid_mark=1` персистентно в `/etc/sysctl.d/99-awg.conf`.
-- Приложение подключается к Telegram **без прокси** (`PROXY=` пустой в `.env`): Telethon ходит к `149.154.167.51`, маршрут направляет через `awg0`.
+**Архитектура NL VDS:**
+- Python 3.10 + venv + systemd-сервис `telegram-courses` (без Docker)
+- Flask слушает на `0.0.0.0:8181` (не за nginx)
+- Пользователи заходят на `http://188.208.103.65:8181` через AmneziaVPN
+- `URL_PREFIX=` пустой, `HOST=0.0.0.0`, `PROXY=` пустой (direct TG)
+- Часы: `chrony` (NTP-синхронизация обязательна — Telethon отваливается при дрейфе >5с)
 
-Код поддержки прокси (`PROXY=socks5://...` / `http://...`) в `downloader.py:_parse_proxy()` оставлен как fallback.
+**Background tasks (Python 3.10 фикс):** функция `run_background()` в `app.py` сохраняет ссылки на futures от `asyncio.run_coroutine_threadsafe()` в `_background_futures`, чтобы Python 3.10 не собирал их GC посреди выполнения (в 3.11+ это не проявлялось из-за менее строгого GC, но best practice одинаковая).
 
 **Прогресс скачивания:** `progress_callback` в Telethon отдаёт байты, JS поллит `/api/progress` раз в секунду.
+
+### Резервная инфраструктура на RU VDS (для других проектов и на случай новых блокировок)
+Приложение переехало на NL, но каналы на RU VDS оставлены — пригодятся при новых блокировках.
+- **AmneziaWG туннель** (Docker `awg0`, образ `amneziavpn/amneziawg-go`) — маршрутизирует IP Telegram через `awg2` контейнер на NL (UDP 48588, обфусцированный WG).
+- **SSH SOCKS5 туннель** (`ssh-tunnel-nl.service`) — порт 9150, SSH-ключ `id_ed25519` RU→NL.
+- **SSH watchdog** (`ssh-tunnel-nl-watchdog.timer`) — раз в минуту проверяет туннель, перезапускает при обрыве.
+- **Squid HTTP-прокси** на NL (`188.208.103.65:3128`) — используется kinescope-downloader, остаётся.
+
+Каскад защиты: direct → Squid → SSH SOCKS5 → AmneziaWG. Код в `downloader.py:_parse_proxy()` поддерживает `PROXY=http://...` или `socks5://...` — если DPI опять станет агрессивным, в `.env` можно включить любой из каналов.
 
 ### Приватные каналы
 Ссылки формата `t.me/c/CHANNEL_ID/...` обрабатываются отдельно: ID конвертируется с префиксом `-100` для Telethon.
 
 ## Деплой
 
-Сервер: `ssh wbcc` (IP `185.221.213.215`, root, тот же VDS что Songbook)
-Домен: `https://abbsongs.duckdns.org/tg/`
+Сервер: `ssh kinescope-vds` (IP `188.208.103.65`, root, голландский VDS Hostkey B.v.)
+URL: `http://188.208.103.65:8181` (через AmneziaVPN пользователя)
+
+Пользователи: администратор + 1 близкий пользователь. Без HTTPS/домена — трафик зашифрован AmneziaVPN пользователя.
 
 ```bash
 # На сервере — первый раз:
@@ -123,15 +133,15 @@ cd telegram-courses
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env  # заполнить
-sudo cp telegram-courses.service /etc/systemd/system/
+cp .env.example .env  # заполнить: HOST=0.0.0.0, PORT=8181, URL_PREFIX=, PROXY=
+# Создать systemd-сервис /etc/systemd/system/telegram-courses.service
 sudo systemctl enable --now telegram-courses
-# Добавить location block из nginx.conf в /etc/nginx/sites-enabled/songbook
-sudo nginx -t && sudo systemctl reload nginx
 
 # Обновление:
-ssh wbcc "cd /opt/telegram-courses && git pull && sudo systemctl restart telegram-courses"
+ssh kinescope-vds "cd /opt/telegram-courses && git pull && systemctl restart telegram-courses"
 ```
+
+**Важно:** часы на сервере должны быть синхронизированы (`apt install chrony`), иначе Telethon падает с "Security error: Too many messages had to be ignored consecutively".
 
 ## API-эндпоинты
 
