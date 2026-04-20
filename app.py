@@ -58,6 +58,20 @@ def run_async(coro):
     return asyncio.run_coroutine_threadsafe(coro, loop).result(timeout=300)
 
 
+# Keep references to fire-and-forget background tasks so they aren't GC'd
+# (Python 3.10 is stricter about this than 3.11+)
+_background_futures: set = set()
+
+
+def run_background(coro):
+    """Launch a coroutine in the background loop, keeping a reference to
+    prevent garbage collection of the task."""
+    fut = asyncio.run_coroutine_threadsafe(coro, loop)
+    _background_futures.add(fut)
+    fut.add_done_callback(_background_futures.discard)
+    return fut
+
+
 # -- Data persistence (JSON) --
 
 def load_data() -> dict:
@@ -242,9 +256,8 @@ def add_course():
 
         # Download thumbs in background
         course_dir = os.path.join(Config.DOWNLOAD_DIR, course_id)
-        asyncio.run_coroutine_threadsafe(
-            downloader.download_thumbs(chat_info["id"], files, course_dir),
-            loop,
+        run_background(
+            downloader.download_thumbs(chat_info["id"], files, course_dir)
         )
 
         return jsonify({
@@ -272,9 +285,8 @@ def rescan_course():
 
         # Download thumbs in background
         course_dir = os.path.join(Config.DOWNLOAD_DIR, course_id)
-        asyncio.run_coroutine_threadsafe(
-            downloader.download_thumbs(course["chat_id"], files, course_dir),
-            loop,
+        run_background(
+            downloader.download_thumbs(course["chat_id"], files, course_dir)
         )
 
         return jsonify({"ok": True, "total_files": len(files)})
@@ -304,9 +316,8 @@ def download_from_tg():
     if not pending:
         return jsonify({"ok": False, "error": "Нет новых файлов для скачивания"}), 400
 
-    asyncio.run_coroutine_threadsafe(
-        downloader.download_course(course_id, course["chat_id"], pending, course_dir),
-        loop,
+    run_background(
+        downloader.download_course(course_id, course["chat_id"], pending, course_dir)
     )
     return jsonify({"ok": True})
 
@@ -332,12 +343,11 @@ def download_single_from_tg():
         return jsonify({"ok": False, "error": "Файл не найден в метаданных"}), 404
 
     course_dir = os.path.join(Config.DOWNLOAD_DIR, course_id)
-    asyncio.run_coroutine_threadsafe(
+    run_background(
         downloader.download_single(
             course_id, course["chat_id"], file_info["msg_id"],
             filename, file_info.get("size", 0), course_dir
-        ),
-        loop,
+        )
     )
     return jsonify({"ok": True})
 
