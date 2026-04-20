@@ -92,10 +92,20 @@ Telegram может давать разным файлам одинаковые 
 - `.file-list` (`flex: 1; overflow-y: auto; min-height: 0`) — единственная прокручиваемая область
 - Bulk bar показывается/скрывается через `max-height/opacity` transition (не `display:none`, т.к. ломает layout)
 
-### Прокси для Telegram
-Telegram заблокирован в РФ с марта 2026. Telethon подключается через SOCKS5-прокси (SSH-туннель на голландский VDS `188.208.103.65`). Настройка в `.env`: `PROXY=socks5://127.0.0.1:9150`. Поддерживаются HTTP и SOCKS5. Парсинг URL в `downloader.py:_parse_proxy()`, передаётся в `TelegramClient(proxy=...)` через `python-socks`.
-- SSH-туннель работает как systemd-сервис `ssh-tunnel-nl` на российском VDS (автозапуск, автоперезапуск)
-- Прогресс скачивания: `progress_callback` в Telethon отдаёт байты, JS поллит `/api/progress` раз в секунду
+### Обход блокировки Telegram (AmneziaWG туннель)
+Telegram заблокирован в РФ с марта 2026 на уровне DPI/ТСПУ. Все IP-подсети TG режутся. SSH- и HTTP-прокси на голландский VDS работали, но скорость NL→RU катастрофически низкая (~30 КБ/с) — маршрут шейпится.
+
+**Решение:** обфусцированный AmneziaWG-туннель (не ловится DPI).
+- На голландском VDS (`188.208.103.65`) уже работает AmneziaWG-сервер `amnezia-awg2` (UDP 48588).
+- На российском VDS запущен Docker-контейнер `awg0` (образ `amneziavpn/amneziawg-go:latest`) с userspace-реализацией AmneziaWG. Host-сеть, `NET_ADMIN`, `/dev/net/tun`, автозапуск `--restart unless-stopped`.
+- Конфиг в `/etc/amneziawg/awg0.conf` (создан из `vpn://` профиля приложения AmneziaVPN). `Table = off` — awg-quick не трогает default route.
+- **Узкая маршрутизация**: через туннель идут только IP-диапазоны Telegram (`149.154.160.0/20`, `91.108.4.0/22`, `91.108.8.0/22`, `91.108.16.0/22`, `91.108.56.0/22`, `95.161.64.0/20`) — остальной трафик сервера (nginx, git, apt) напрямую.
+- sysctl `net.ipv4.conf.all.src_valid_mark=1` персистентно в `/etc/sysctl.d/99-awg.conf`.
+- Приложение подключается к Telegram **без прокси** (`PROXY=` пустой в `.env`): Telethon ходит к `149.154.167.51`, маршрут направляет через `awg0`.
+
+Код поддержки прокси (`PROXY=socks5://...` / `http://...`) в `downloader.py:_parse_proxy()` оставлен как fallback.
+
+**Прогресс скачивания:** `progress_callback` в Telethon отдаёт байты, JS поллит `/api/progress` раз в секунду.
 
 ### Приватные каналы
 Ссылки формата `t.me/c/CHANNEL_ID/...` обрабатываются отдельно: ID конвертируется с префиксом `-100` для Telethon.
