@@ -143,6 +143,43 @@ ssh kinescope-vds "cd /opt/telegram-courses && git pull && systemctl restart tel
 
 **Важно:** часы на сервере должны быть синхронизированы (`apt install chrony`), иначе Telethon падает с "Security error: Too many messages had to be ignored consecutively".
 
+## Резервный сервер (cold standby) — план
+
+Когда появится второй VPS, развернуть на нём идентичную копию приложения, держать выключенной, периодически синхронизировать секреты. При падении основного — переключение за ~30 секунд.
+
+**Что синхронизируется** (~170 КБ всего, sync почти мгновенный):
+- `.env` — секреты, конфигурация
+- `session.session` — авторизация Telethon
+- `data.json` — метаданные курса
+
+**Что НЕ синхронизируется:**
+- Код приложения — берётся из git (`git pull`)
+- Папка `downloads/` — временные файлы, не нужно дублировать (МБ-ГБ)
+
+**Скрипт синхронизации** (запускать на резервном сервере вручную после понедельничного rescan, или cron раз в сутки):
+```bash
+#!/bin/bash
+# /usr/local/bin/sync-from-primary.sh
+PRIMARY=primary-server-alias
+cd /opt/telegram-courses
+git pull
+rsync -a $PRIMARY:/opt/telegram-courses/.env .
+rsync -a $PRIMARY:/opt/telegram-courses/session.session .
+rsync -a $PRIMARY:/opt/telegram-courses/data.json .
+```
+
+**Сервис на резерве:** установлен через systemd, но `systemctl disable` (не запускается автоматически).
+
+**При переключении** (основной упал):
+1. SSH на резерв
+2. Запустить `sync-from-primary.sh` (на случай если последняя синхронизация запоздала)
+3. `systemctl start telegram-courses`
+4. Открыть IP резервного сервера в браузере
+5. Закладку браузера обновить на новый IP
+
+**Почему cold standby, а не active-active:**
+Telegram-сессия привязана к одному устройству. Два одновременных Telethon-клиента с одной сессией постоянно конфликтуют за авторизацию. Active-active возможен только с разными TG-сессиями, что сильно усложняет схему.
+
 ## API-эндпоинты
 
 - `POST /api/telegram/connect` — подключение к Telegram
