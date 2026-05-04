@@ -518,27 +518,53 @@ function closePlayer(event) {
     document.body.style.overflow = '';
 }
 
-/* -- Sorting -- */
+/* -- Sorting (persisted in localStorage) -- */
+
+const SORT_KEY = 'tg_courses_sort';
+const DEFAULT_SORT = { field: 'date', dir: 'desc' };  // newest first
+
+function loadSortPref() {
+    try {
+        const raw = localStorage.getItem(SORT_KEY);
+        if (raw) {
+            const p = JSON.parse(raw);
+            if (p.field && p.dir) return p;
+        }
+    } catch (e) {}
+    return { ...DEFAULT_SORT };
+}
+
+function saveSortPref(field, dir) {
+    try { localStorage.setItem(SORT_KEY, JSON.stringify({ field, dir })); } catch (e) {}
+}
+
+function applySort(field, dir) {
+    const allBtns = document.querySelectorAll('.sort-btn');
+    allBtns.forEach(b => {
+        b.classList.remove('active');
+        b.innerHTML = b.textContent.replace(/ [▲▼]/g, '').trim();
+    });
+    const btn = document.querySelector('.sort-btn[data-sort="' + field + '"]');
+    if (btn) {
+        btn.dataset.dir = dir;
+        btn.classList.add('active');
+        const label = btn.textContent.replace(/ [▲▼]/g, '').trim();
+        btn.innerHTML = label + ' ' + (dir === 'asc' ? '&#9650;' : '&#9660;');
+    }
+    sortFiles(field, dir);
+}
 
 function toggleSort(field, btn) {
-    const allBtns = document.querySelectorAll('.sort-btn');
     const wasActive = btn.classList.contains('active');
-    let dir = btn.dataset.dir || 'asc';
-
+    let dir = btn.dataset.dir || 'desc';
     if (wasActive) {
         dir = dir === 'asc' ? 'desc' : 'asc';
     } else {
-        allBtns.forEach(b => { b.classList.remove('active'); b.textContent = b.textContent.replace(/ [▲▼]/g, ''); });
-        dir = field === 'date' ? 'asc' : 'asc';
+        // Sensible defaults per field on first click
+        dir = (field === 'date' || field === 'size') ? 'desc' : 'asc';
     }
-
-    btn.dataset.dir = dir;
-    btn.classList.add('active');
-    // Update arrow in button text
-    const label = btn.textContent.replace(/ [▲▼]/g, '').trim();
-    btn.innerHTML = label + ' ' + (dir === 'asc' ? '&#9650;' : '&#9660;');
-
-    sortFiles(field, dir);
+    saveSortPref(field, dir);
+    applySort(field, dir);
 }
 
 function sortFiles(field, dir) {
@@ -586,6 +612,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Hover previews
     initHoverPreviews();
+
+    // Apply saved sort preference (or default: date desc)
+    if (document.querySelector('.sort-bar')) {
+        const pref = loadSortPref();
+        applySort(pref.field, pref.dir);
+    }
 
     // Player keyboard shortcuts
     document.addEventListener('keydown', (e) => {
