@@ -23,11 +23,17 @@ from config import Config
 logger = logging.getLogger(__name__)
 
 
+class DownloadCancelled(Exception):
+    """Raised to abort an in-progress download (via the progress callback)."""
+    pass
+
+
 class TelegramDownloader:
     def __init__(self):
         self.client: TelegramClient | None = None
         self.connected = False
         self.downloading = False
+        self.cancel_requested = False
         self.progress = {}  # course_id -> {total, done, current_file, status}
 
     # -- Connection --
@@ -230,9 +236,31 @@ class TelegramDownloader:
 
     # -- Downloading --
 
+    def request_cancel(self):
+        """Signal any in-progress download to stop ASAP. Safe to call from
+        another thread (plain bool flag, atomic under the GIL)."""
+        if self.downloading:
+            self.cancel_requested = True
+
+    @staticmethod
+    def _cleanup_partial(filepath: str):
+        """Remove a partially-downloaded file after cancellation. Telethon
+        writes with 'wb' (no resume), so a leftover partial would wrongly
+        appear as a complete file."""
+        try:
+            if filepath and os.path.exists(filepath):
+                os.remove(filepath)
+                logger.info(f"Removed partial file: {filepath}")
+        except OSError as e:
+            logger.warning(f"Could not remove partial file {filepath}: {e}")
+
     def _make_progress_cb(self, course_id: str):
-        """Create a callback for Telethon download_media to track byte progress."""
+        """Create a callback for Telethon download_media to track byte progress.
+        Raising inside the callback aborts the download mid-file (Telethon
+        propagates it and closes the file in its finally block)."""
         def callback(received, total):
+            if self.cancel_requested:
+                raise DownloadCancelled()
             prog = self.progress.get(course_id)
             if prog:
                 prog["bytes_done"] = received
@@ -247,6 +275,7 @@ class TelegramDownloader:
 
         await self.ensure_connected()
         self.downloading = True
+        self.cancel_requested = False
         os.makedirs(course_dir, exist_ok=True)
         filepath = os.path.join(course_dir, filename)
 
@@ -260,6 +289,7 @@ class TelegramDownloader:
             "errors": [],
         }
 
+        cancelled = False
         try:
             entity = await self.client.get_entity(chat_id)
             message = await self.client.get_messages(entity, ids=msg_id)
@@ -269,15 +299,20 @@ class TelegramDownloader:
                 )
                 logger.info(f"Downloaded: {filename}")
                 self.progress[course_id]["done"] = 1
+        except DownloadCancelled:
+            logger.info(f"Download cancelled: {filename}")
+            self._cleanup_partial(filepath)
+            cancelled = True
         except Exception as e:
             logger.error(f"Error downloading {filename}: {e}")
             self.progress[course_id]["errors"].append(
                 {"file": filename, "error": str(e)}
             )
 
-        self.progress[course_id]["status"] = "completed"
+        self.progress[course_id]["status"] = "cancelled" if cancelled else "completed"
         self.progress[course_id]["current_file"] = ""
         self.downloading = False
+        self.cancel_requested = False
 
     async def download_course(self, course_id: str, chat_id: int,
                               file_list: list[dict], course_dir: str):
@@ -287,6 +322,7 @@ class TelegramDownloader:
 
         await self.ensure_connected()
         self.downloading = True
+        self.cancel_requested = False
         os.makedirs(course_dir, exist_ok=True)
 
         total = len(file_list)
@@ -302,7 +338,13 @@ class TelegramDownloader:
 
         entity = await self.client.get_entity(chat_id)
 
+        cancelled = False
         for i, file_info in enumerate(file_list):
+            # Cancellation requested between files
+            if self.cancel_requested:
+                cancelled = True
+                break
+
             filename = file_info["filename"]
             filepath = os.path.join(course_dir, filename)
 
@@ -324,6 +366,11 @@ class TelegramDownloader:
                         progress_callback=self._make_progress_cb(course_id),
                     )
                     logger.info(f"Downloaded: {filename}")
+            except DownloadCancelled:
+                logger.info(f"Download cancelled during: {filename}")
+                self._cleanup_partial(filepath)
+                cancelled = True
+                break
             except Exception as e:
                 logger.error(f"Error downloading {filename}: {e}")
                 self.progress[course_id]["errors"].append(
@@ -332,9 +379,10 @@ class TelegramDownloader:
 
             self.progress[course_id]["done"] = i + 1
 
-        self.progress[course_id]["status"] = "completed"
+        self.progress[course_id]["status"] = "cancelled" if cancelled else "completed"
         self.progress[course_id]["current_file"] = ""
         self.downloading = False
+        self.cancel_requested = False
         return self.progress[course_id]
 
     # -- Thumbnails --

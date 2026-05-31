@@ -35,10 +35,7 @@
 
             <!-- Bulk actions bar (hidden until selection) -->
             <div class="bulk-bar" id="bulkBar">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
-                    <span id="selectionText">Выбрать все</span>
-                </label>
+                <span id="selectionText" class="bulk-count">Выбрано: 0</span>
                 <div class="bulk-actions">
                     <button class="btn btn-primary btn-sm" onclick="bulkDownload()">
                         Скачать на компьютер
@@ -79,12 +76,21 @@
                          style="width:{{ (progress.get('done', 0) / progress.get('total', 1) * 100) if progress.get('total') else 0 }}%">
                     </div>
                 </div>
+                <div class="progress-actions">
+                    <button class="btn btn-danger btn-sm" id="btnCancelDownload"
+                            onclick="cancelDownload()">Отменить загрузку</button>
+                </div>
             </div>
         </div>
 
         <!-- Sort bar + File list -->
         {% if files %}
         <div class="sort-bar">
+            <label class="checkbox-label select-all-label">
+                <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                Все
+            </label>
+            <span class="sort-divider"></span>
             <span class="sort-label">Сортировка:</span>
             <button class="sort-btn" data-sort="date" onclick="toggleSort('date', this)">Дата</button>
             <button class="sort-btn" data-sort="name" onclick="toggleSort('name', this)">Имя</button>

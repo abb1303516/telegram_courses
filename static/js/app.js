@@ -134,6 +134,9 @@ async function rescan() {
 
 async function downloadAll() {
     const btn = document.getElementById('btnDownloadAll');
+    const label = btn.textContent.trim();
+    if (!confirm('Запустить скачивание из Telegram?\n\n' + label)) return;
+
     btn.disabled = true;
     btn.textContent = 'Запускаю...';
 
@@ -153,6 +156,19 @@ async function downloadAll() {
     btn.textContent = 'Скачать из Telegram';
 }
 
+/* -- Cancel running download -- */
+
+async function cancelDownload() {
+    const btn = document.getElementById('btnCancelDownload');
+    if (btn) { btn.disabled = true; btn.textContent = 'Отменяю...'; }
+    try {
+        await api('./api/course/download/cancel');
+        // pollProgress will pick up "cancelled" status and reload the page
+    } catch (e) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Отменить загрузку'; }
+    }
+}
+
 /* -- Progress Polling -- */
 
 function formatBytes(bytes) {
@@ -165,6 +181,8 @@ function formatBytes(bytes) {
 function pollProgress() {
     var section = document.getElementById('progressSection');
     if (section) section.style.display = 'block';
+    var cancelBtn = document.getElementById('btnCancelDownload');
+    if (cancelBtn) { cancelBtn.style.display = ''; cancelBtn.disabled = false; cancelBtn.textContent = 'Отменить загрузку'; }
 
     const interval = setInterval(async () => {
         try {
@@ -198,8 +216,21 @@ function pollProgress() {
                 : bytesPct;
             document.getElementById('progressBar').style.width = pct + '%';
 
+            if (data.status === 'cancelled') {
+                clearInterval(interval);
+                var cb = document.getElementById('btnCancelDownload');
+                if (cb) cb.style.display = 'none';
+                document.getElementById('progressText').textContent =
+                    'Загрузка отменена. Скачано ' + data.done + (data.total > 1 ? ' из ' + data.total : '') + '.';
+                document.getElementById('progressFile').textContent = '';
+                setTimeout(() => location.reload(), 1500);
+                return;
+            }
+
             if (data.status === 'completed') {
                 clearInterval(interval);
+                var cb2 = document.getElementById('btnCancelDownload');
+                if (cb2) cb2.style.display = 'none';
                 document.getElementById('progressBar').style.width = '100%';
                 document.getElementById('progressText').textContent =
                     'Готово! Скачано ' + data.done + (data.total > 1 ? ' файлов.' : ' файл.');
@@ -281,10 +312,10 @@ function updateSelection() {
 
     if (checked.length > 0) {
         bulkBar.classList.add('visible');
-        selText.textContent = 'Выбрано: ' + checked.length;
+        if (selText) selText.textContent = 'Выбрано: ' + checked.length;
     } else {
         bulkBar.classList.remove('visible');
-        selText.textContent = 'Выбрать все';
+        if (selText) selText.textContent = 'Выбрано: 0';
     }
 
     // Update select all checkbox state

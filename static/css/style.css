@@ -457,6 +457,45 @@ body.main-page .container {
 .sort-btn:hover { color: var(--text); border-color: #ccc; }
 .sort-btn.active { color: var(--accent); border-color: var(--accent); font-weight: 600; }
 
+.select-all-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.select-all-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.sort-divider {
+    width: 1px;
+    align-self: stretch;
+    background: var(--border);
+    margin: 2px 4px;
+}
+
+.bulk-count {
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* -- Progress actions (cancel button) -- */
+.progress-actions {
+    margin-top: 10px;
+    display: flex;
+    justify-content: flex-end;
+}
+
 /* -- Badges -- */
 .badge, .badge-ok, .badge-warn, .badge-pending {
     display: inline-block;

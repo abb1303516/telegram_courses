@@ -322,6 +322,16 @@ def download_from_tg():
     return jsonify({"ok": True})
 
 
+@app.route("/api/course/download/cancel", methods=["POST"])
+@login_required
+def cancel_download():
+    """Request cancellation of the current download (bulk or single)."""
+    if not downloader.downloading:
+        return jsonify({"ok": False, "error": "Нет активной загрузки"}), 400
+    downloader.request_cancel()
+    return jsonify({"ok": True})
+
+
 @app.route("/api/file/download-tg", methods=["POST"])
 @login_required
 def download_single_from_tg():
