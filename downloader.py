@@ -166,18 +166,30 @@ class TelegramDownloader:
         files = []
 
         async for message in self.client.iter_messages(entity):
-            if message.media is None:
-                continue
-            file_info = self._extract_file_info(message)
-            if file_info:
-                files.append(file_info)
+            if message.media is not None:
+                file_info = self._extract_file_info(message)
+                if file_info:
+                    files.append(file_info)
+            else:
+                # Text-only message (no media) — capture as a text entry.
+                # getattr guards service messages that lack a .message attr.
+                text = (getattr(message, "message", "") or "").strip()
+                if text:
+                    files.append({
+                        "msg_id": message.id,
+                        "type": "text",
+                        "text": text,
+                        "date": message.date.isoformat(),
+                    })
 
         files.sort(key=lambda f: f["date"])
 
-        # Deduplicate filenames by appending _msgID
+        # Deduplicate filenames by appending _msgID (text entries have no filename)
         seen = {}
         for f in files:
-            name = f["filename"]
+            name = f.get("filename")
+            if not name:
+                continue
             if name in seen:
                 seen[name].append(f)
             else:
@@ -195,6 +207,7 @@ class TelegramDownloader:
 
     def _extract_file_info(self, message) -> dict | None:
         media = message.media
+        caption = (getattr(message, "message", "") or "").strip()
 
         if isinstance(media, MessageMediaDocument) and media.document:
             doc = media.document
@@ -220,6 +233,7 @@ class TelegramDownloader:
                 "type": file_type,
                 "mime": doc.mime_type,
                 "date": message.date.isoformat(),
+                "caption": caption,
             }
 
         elif isinstance(media, MessageMediaPhoto):
@@ -230,6 +244,7 @@ class TelegramDownloader:
                 "type": "photo",
                 "mime": "image/jpeg",
                 "date": message.date.isoformat(),
+                "caption": caption,
             }
 
         return None
@@ -276,7 +291,6 @@ class TelegramDownloader:
         await self.ensure_connected()
         self.downloading = True
         self.cancel_requested = False
-        os.makedirs(course_dir, exist_ok=True)
         filepath = os.path.join(course_dir, filename)
 
         self.progress[course_id] = {
@@ -290,7 +304,10 @@ class TelegramDownloader:
         }
 
         cancelled = False
+        # try/finally guarantees the downloading flag is always reset, even if
+        # get_entity/makedirs raise — otherwise the whole subsystem would wedge.
         try:
+            os.makedirs(course_dir, exist_ok=True)
             entity = await self.client.get_entity(chat_id)
             message = await self.client.get_messages(entity, ids=msg_id)
             if message and message.media:
@@ -305,14 +322,15 @@ class TelegramDownloader:
             cancelled = True
         except Exception as e:
             logger.error(f"Error downloading {filename}: {e}")
+            self._cleanup_partial(filepath)
             self.progress[course_id]["errors"].append(
                 {"file": filename, "error": str(e)}
             )
-
-        self.progress[course_id]["status"] = "cancelled" if cancelled else "completed"
-        self.progress[course_id]["current_file"] = ""
-        self.downloading = False
-        self.cancel_requested = False
+        finally:
+            self.progress[course_id]["status"] = "cancelled" if cancelled else "completed"
+            self.progress[course_id]["current_file"] = ""
+            self.downloading = False
+            self.cancel_requested = False
 
     async def download_course(self, course_id: str, chat_id: int,
                               file_list: list[dict], course_dir: str):
@@ -323,7 +341,6 @@ class TelegramDownloader:
         await self.ensure_connected()
         self.downloading = True
         self.cancel_requested = False
-        os.makedirs(course_dir, exist_ok=True)
 
         total = len(file_list)
         self.progress[course_id] = {
@@ -336,53 +353,65 @@ class TelegramDownloader:
             "errors": [],
         }
 
-        entity = await self.client.get_entity(chat_id)
-
         cancelled = False
-        for i, file_info in enumerate(file_list):
-            # Cancellation requested between files
-            if self.cancel_requested:
-                cancelled = True
-                break
+        # Outer try/finally guarantees the downloading flag is always reset,
+        # even if makedirs/get_entity raise — otherwise every future download
+        # would be blocked until the process restarts.
+        try:
+            os.makedirs(course_dir, exist_ok=True)
+            entity = await self.client.get_entity(chat_id)
 
-            filename = file_info["filename"]
-            filepath = os.path.join(course_dir, filename)
+            for i, file_info in enumerate(file_list):
+                # Cancellation requested between files
+                if self.cancel_requested:
+                    cancelled = True
+                    break
 
-            # Skip already downloaded
-            if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
-                if file_info["size"] == 0 or os.path.getsize(filepath) >= file_info["size"]:
-                    self.progress[course_id]["done"] = i + 1
-                    continue
+                filename = file_info["filename"]
+                filepath = os.path.join(course_dir, filename)
 
-            self.progress[course_id]["current_file"] = filename
-            self.progress[course_id]["bytes_done"] = 0
-            self.progress[course_id]["bytes_total"] = file_info.get("size", 0)
+                # Skip already downloaded
+                if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+                    if file_info["size"] == 0 or os.path.getsize(filepath) >= file_info["size"]:
+                        self.progress[course_id]["done"] = i + 1
+                        continue
 
-            try:
-                message = await self.client.get_messages(entity, ids=file_info["msg_id"])
-                if message and message.media:
-                    await self.client.download_media(
-                        message, file=filepath,
-                        progress_callback=self._make_progress_cb(course_id),
+                self.progress[course_id]["current_file"] = filename
+                self.progress[course_id]["bytes_done"] = 0
+                self.progress[course_id]["bytes_total"] = file_info.get("size", 0)
+
+                try:
+                    message = await self.client.get_messages(entity, ids=file_info["msg_id"])
+                    if message and message.media:
+                        await self.client.download_media(
+                            message, file=filepath,
+                            progress_callback=self._make_progress_cb(course_id),
+                        )
+                        logger.info(f"Downloaded: {filename}")
+                except DownloadCancelled:
+                    logger.info(f"Download cancelled during: {filename}")
+                    self._cleanup_partial(filepath)
+                    cancelled = True
+                    break
+                except Exception as e:
+                    logger.error(f"Error downloading {filename}: {e}")
+                    self._cleanup_partial(filepath)
+                    self.progress[course_id]["errors"].append(
+                        {"file": filename, "error": str(e)}
                     )
-                    logger.info(f"Downloaded: {filename}")
-            except DownloadCancelled:
-                logger.info(f"Download cancelled during: {filename}")
-                self._cleanup_partial(filepath)
-                cancelled = True
-                break
-            except Exception as e:
-                logger.error(f"Error downloading {filename}: {e}")
-                self.progress[course_id]["errors"].append(
-                    {"file": filename, "error": str(e)}
-                )
 
-            self.progress[course_id]["done"] = i + 1
+                self.progress[course_id]["done"] = i + 1
+        except DownloadCancelled:
+            cancelled = True
+        except Exception as e:
+            logger.error(f"Download course failed: {e}")
+            self.progress[course_id]["errors"].append({"file": "", "error": str(e)})
+        finally:
+            self.progress[course_id]["status"] = "cancelled" if cancelled else "completed"
+            self.progress[course_id]["current_file"] = ""
+            self.downloading = False
+            self.cancel_requested = False
 
-        self.progress[course_id]["status"] = "cancelled" if cancelled else "completed"
-        self.progress[course_id]["current_file"] = ""
-        self.downloading = False
-        self.cancel_requested = False
         return self.progress[course_id]
 
     # -- Thumbnails --

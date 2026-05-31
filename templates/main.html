@@ -96,9 +96,34 @@
             <button class="sort-btn" data-sort="name" onclick="toggleSort('name', this)">Имя</button>
             <button class="sort-btn" data-sort="size" onclick="toggleSort('size', this)">Размер</button>
             <button class="sort-btn" data-sort="type" onclick="toggleSort('type', this)">Тип</button>
+            <span class="sort-divider"></span>
+            <label class="checkbox-label select-all-label">
+                <input type="checkbox" id="toggleText" onchange="toggleTextMessages()" checked>
+                Текст
+            </label>
         </div>
         <div class="file-list">
             {% for f in files %}
+            {% if f.type == 'text' %}
+            <div class="file-row text-row"
+                 data-filename=""
+                 data-date="{{ f.date }}"
+                 data-size="0"
+                 data-type="text">
+                <div class="file-preview">
+                    <div class="preview-icon preview-text">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    </div>
+                </div>
+                <div class="file-info text-info">
+                    <div class="text-content">{{ f.text }}</div>
+                    <span class="file-meta"><span class="file-date">{{ f.date_fmt }}</span></span>
+                </div>
+                <div class="file-actions">
+                    <button class="btn btn-ghost btn-sm" onclick="copyTextMsg(this)">Копировать</button>
+                </div>
+            </div>
+            {% else %}
             <div class="file-row {{ 'file-on-server' if f.on_server else 'file-pending' }}"
                  data-filename="{{ f.filename }}"
                  data-on-server="{{ 'true' if f.on_server else 'false' }}"
@@ -138,6 +163,9 @@
 
                 <div class="file-info">
                     <span class="file-name" title="{{ f.filename }}">{{ f.filename }}</span>
+                    {% if f.caption %}
+                    <span class="file-caption" title="{{ f.caption }}">{{ f.caption }}</span>
+                    {% endif %}
                     <span class="file-meta">
                         {{ f.local_size if f.on_server else f.size_fmt }}
                         <span class="file-date">{{ f.date_fmt }}</span>
@@ -163,6 +191,7 @@
                     {% endif %}
                 </div>
             </div>
+            {% endif %}
             {% endfor %}
         </div>
         {% else %}

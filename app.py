@@ -140,12 +140,7 @@ def index():
 
     thumbs_dir = os.path.join(course_dir, ".thumbs")
     for f in course.get("files", []):
-        filepath = os.path.join(course_dir, f["filename"])
-        on_server = os.path.exists(filepath) and os.path.getsize(filepath) > 0
-        if not on_server:
-            pending_count += 1
-        has_thumb = os.path.exists(os.path.join(thumbs_dir, f["filename"] + ".jpg"))
-        # Format date for display
+        # Format date for display (common to all entry types)
         date_str = f.get("date", "")
         date_fmt = ""
         if date_str:
@@ -154,6 +149,22 @@ def index():
                 date_fmt = dt.strftime("%d.%m.%Y")
             except (ValueError, TypeError):
                 pass
+
+        # Text-only message — no file on disk, not counted as pending
+        if f.get("type") == "text":
+            files.append({
+                **f,
+                "on_server": False,
+                "has_thumb": False,
+                "date_fmt": date_fmt,
+            })
+            continue
+
+        filepath = os.path.join(course_dir, f["filename"])
+        on_server = os.path.exists(filepath) and os.path.getsize(filepath) > 0
+        if not on_server:
+            pending_count += 1
+        has_thumb = os.path.exists(os.path.join(thumbs_dir, f["filename"] + ".jpg"))
         files.append({
             **f,
             "on_server": on_server,
@@ -306,9 +317,11 @@ def download_from_tg():
 
     course_dir = os.path.join(Config.DOWNLOAD_DIR, course_id)
 
-    # Filter to only files not on server
+    # Filter to only files not on server (skip text-only entries)
     pending = []
     for f in course["files"]:
+        if not f.get("filename"):
+            continue
         filepath = os.path.join(course_dir, f["filename"])
         if not (os.path.exists(filepath) and os.path.getsize(filepath) > 0):
             pending.append(f)
@@ -345,7 +358,7 @@ def download_single_from_tg():
     filename = request.json.get("filename", "")
     file_info = None
     for f in course.get("files", []):
-        if f["filename"] == filename:
+        if f.get("filename") == filename:
             file_info = f
             break
 

@@ -179,6 +179,9 @@ function formatBytes(bytes) {
 }
 
 function pollProgress() {
+    // Guard against multiple overlapping pollers (page reload + click race)
+    if (pollProgress._timer) return;
+
     var section = document.getElementById('progressSection');
     if (section) section.style.display = 'block';
     var cancelBtn = document.getElementById('btnCancelDownload');
@@ -218,6 +221,7 @@ function pollProgress() {
 
             if (data.status === 'cancelled') {
                 clearInterval(interval);
+                pollProgress._timer = null;
                 var cb = document.getElementById('btnCancelDownload');
                 if (cb) cb.style.display = 'none';
                 document.getElementById('progressText').textContent =
@@ -229,6 +233,7 @@ function pollProgress() {
 
             if (data.status === 'completed') {
                 clearInterval(interval);
+                pollProgress._timer = null;
                 var cb2 = document.getElementById('btnCancelDownload');
                 if (cb2) cb2.style.display = 'none';
                 document.getElementById('progressBar').style.width = '100%';
@@ -247,6 +252,7 @@ function pollProgress() {
             // ignore polling errors
         }
     }, 1000);
+    pollProgress._timer = interval;
 }
 
 /* -- Download Single File from TG (main page) -- */
@@ -630,6 +636,80 @@ function sortFiles(field, dir) {
     rows.forEach(row => list.appendChild(row));
 }
 
+/* -- Text messages: show/hide toggle (persisted) + copy -- */
+
+const TEXT_KEY = 'tg_courses_show_text';
+
+function loadTextPref() {
+    try {
+        const v = localStorage.getItem(TEXT_KEY);
+        return v === null ? true : v === '1';
+    } catch (e) { return true; }
+}
+
+function applyTextVisibility(show) {
+    const list = document.querySelector('.file-list');
+    if (list) list.classList.toggle('hide-text', !show);
+    const cb = document.getElementById('toggleText');
+    if (cb) cb.checked = show;
+}
+
+function toggleTextMessages() {
+    const cb = document.getElementById('toggleText');
+    const show = cb ? cb.checked : true;
+    try { localStorage.setItem(TEXT_KEY, show ? '1' : '0'); } catch (e) {}
+    applyTextVisibility(show);
+}
+
+function flashBtn(btn, msg) {
+    const orig = btn.dataset.orig || btn.textContent;
+    btn.dataset.orig = orig;
+    btn.textContent = msg;
+    setTimeout(() => { btn.textContent = btn.dataset.orig; }, 1500);
+}
+
+function copyTextMsg(btn) {
+    const row = btn.closest('.text-row');
+    const content = row ? row.querySelector('.text-content') : null;
+    if (!content) return;
+    const text = content.textContent;
+
+    // Modern API only works in a secure context (HTTPS/localhost).
+    // Our app runs over plain HTTP on an IP, so fall back to execCommand.
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text)
+            .then(() => flashBtn(btn, 'Скопировано'))
+            .catch(() => legacyCopy(text, btn, content));
+        return;
+    }
+    legacyCopy(text, btn, content);
+}
+
+function legacyCopy(text, btn, content) {
+    try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.top = '-1000px';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) { flashBtn(btn, 'Скопировано'); return; }
+    } catch (e) {}
+    // Last resort: select the text on the page so the user can Ctrl+C
+    try {
+        const range = document.createRange();
+        range.selectNodeContents(content);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        flashBtn(btn, 'Выделено');
+    } catch (e) {}
+}
+
 /* -- Init -- */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -648,6 +728,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.querySelector('.sort-bar')) {
         const pref = loadSortPref();
         applySort(pref.field, pref.dir);
+    }
+
+    // Apply saved text-messages visibility (default: show)
+    if (document.getElementById('toggleText')) {
+        applyTextVisibility(loadTextPref());
+    }
+
+    // Reconcile selection UI with any checkboxes the browser restored
+    // (Firefox / bfcache re-check boxes without firing onchange)
+    if (document.querySelector('.file-check')) {
+        updateSelection();
     }
 
     // Player keyboard shortcuts
