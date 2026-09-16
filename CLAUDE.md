@@ -159,7 +159,7 @@ Telegram может давать разным файлам одинаковые 
 
 > **ТЕКУЩЕЕ СОСТОЯНИЕ (с 17.09.2026, пробное переключение): приложение работает на greencloud, NL остановлен и выключен.** Активная копия та, где есть файл `/opt/telegram-courses/ACTIVE_HERE`; без него юнит не стартует на обоих серверах. Перед любым `systemctl start/restart` проверить, какая копия активна: две копии на одной сессии Telegram могут отозвать авторизацию.
 >
-> Сейчас: обновление `ssh greencloud-vds "cd /opt/telegram-courses && git pull && systemctl restart telegram-courses"`; доступ через SSH-туннель `ssh -N -L 8181:127.0.0.1:8181 greencloud-vds`, затем `http://127.0.0.1:8181` (наружу порт не открыт, второму пользователю приложение недоступно).
+> Сейчас: URL `http://173.249.194.240:8181` (как на NL: HTTP без шифрования, пароль без ограничения попыток); обновление `ssh greencloud-vds "cd /opt/telegram-courses && git pull && systemctl restart telegram-courses"`. На greencloud `HOST=0.0.0.0` и открыт `ufw allow 8181/tcp` (17.09.2026, по указанию пользователя).
 
 Сервер NL: `ssh kinescope-vds` (IP `188.208.103.65`, root, голландский VDS Hostkey B.v.)
 URL NL: `http://188.208.103.65:8181`
@@ -190,10 +190,10 @@ ssh kinescope-vds "cd /opt/telegram-courses && git pull && systemctl restart tel
 
 Установлена 16.09.2026: `ssh greencloud-vds` (`173.249.194.240`, США, Ubuntu 24.04, Python 3.12, свободно ~30 ГБ). На этом же сервере работает VPN пользователя (Docker `amnezia-awg2`): сервер не ребутить, Docker и firewall не трогать без явного ОК.
 
-- `/opt/telegram-courses`: код из git, venv, `.env`/`session.session`/`data.json` скопированы с NL (права 600). В `.env` стоит `HOST=127.0.0.1`: наружу порт не открыт, ufw не менялся.
+- `/opt/telegram-courses`: код из git, venv, `.env`/`session.session`/`data.json` скопированы с NL (права 600). В `.env` `HOST=0.0.0.0`, в ufw добавлено правило `8181/tcp` (17.09.2026); правила SSH и VPN не менялись.
 - Юнит `telegram-courses` стартует только при наличии метки: `ConditionPathExists=/opt/telegram-courses/ACTIVE_HERE`. Без метки `systemctl start` пропускает запуск (проверено временной задачей с тем же условием). Это защита от второй копии: два клиента на одной сессии Telegram могут отозвать авторизацию, и понадобится новый вход с кодом.
 - Автосинхронизации нет: доступа по SSH с greencloud на NL нет. `session.session` в копии снят утром 16.09 (ключ авторизации тот же, отличается только служебное состояние). Перед переключением свежие `session.session` и `data.json` переносить с NL, уже остановив NL.
-- Открыть копию, пока она запущена: `ssh -L 8181:127.0.0.1:8181 greencloud-vds`, затем `http://127.0.0.1:8181`.
+- Открыть копию, пока она запущена: `http://173.249.194.240:8181`.
 - Проверена без Telegram (тестовый клиент Flask): вход, главная страница со списком курса.
 
 **Переключение** (метка `ACTIVE_HERE` есть ровно на одном сервере, юнит на обоих без неё не стартует):
