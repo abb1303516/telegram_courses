@@ -135,7 +135,7 @@ Telegram может давать разным файлам одинаковые 
 **Архитектура NL VDS:**
 - Python 3.10 + venv + systemd-сервис `telegram-courses` (без Docker)
 - Flask слушает на `0.0.0.0:8181` (не за nginx)
-- Пользователи заходят на `http://188.208.103.65:8181` через AmneziaVPN
+- Пользователи заходят на `http://188.208.103.65:8181` при включённом AmneziaVPN. Но на ПК пользователя для `188.208.103.65` (и `173.249.194.240`) стоят маршруты /32 мимо туннеля, через домашний роутер (проверено 16.09.2026): HTTP приложения, включая пароль, идёт через провайдера открытым текстом
 - `URL_PREFIX=` пустой, `HOST=0.0.0.0`, `PROXY=` пустой (direct TG)
 - Часы: `chrony` (NTP-синхронизация обязательна — Telethon отваливается при дрейфе >5с)
 
@@ -160,7 +160,7 @@ Telegram может давать разным файлам одинаковые 
 Сервер: `ssh kinescope-vds` (IP `188.208.103.65`, root, голландский VDS Hostkey B.v.)
 URL: `http://188.208.103.65:8181` (через AmneziaVPN пользователя)
 
-Пользователи: администратор + 1 близкий пользователь. Без HTTPS/домена — трафик зашифрован AmneziaVPN пользователя.
+Пользователи: администратор + 1 близкий пользователь. Без HTTPS/домена. Считалось, что трафик шифрует AmneziaVPN, но адрес сервера идёт мимо туннеля (см. «Хостинг приложения»).
 
 ```bash
 # На сервере — первый раз:
@@ -180,39 +180,33 @@ ssh kinescope-vds "cd /opt/telegram-courses && git pull && systemctl restart tel
 
 **Важно:** часы на сервере должны быть синхронизированы (`apt install chrony`), иначе Telethon падает с "Security error: Too many messages had to be ignored consecutively".
 
-## Резервный сервер (cold standby) — план
+## Резервная копия на greencloud (cold standby)
 
-Когда появится второй VPS, развернуть на нём идентичную копию приложения, держать выключенной, периодически синхронизировать секреты. При падении основного — переключение за ~30 секунд.
+Установлена 16.09.2026: `ssh greencloud-vds` (`173.249.194.240`, США, Ubuntu 24.04, Python 3.12, свободно ~30 ГБ). На этом же сервере работает VPN пользователя (Docker `amnezia-awg2`): сервер не ребутить, Docker и firewall не трогать без явного ОК.
 
-**Что синхронизируется** (~170 КБ всего, sync почти мгновенный):
-- `.env` — секреты, конфигурация
-- `session.session` — авторизация Telethon
-- `data.json` — метаданные курса
+- `/opt/telegram-courses`: код из git, venv, `.env`/`session.session`/`data.json` скопированы с NL (права 600). В `.env` стоит `HOST=127.0.0.1`: наружу порт не открыт, ufw не менялся.
+- Юнит `telegram-courses` выключен (`disabled`) и стартует только при наличии метки: `ConditionPathExists=/opt/telegram-courses/ACTIVE_HERE`. Без метки `systemctl start` пропускает запуск (проверено временной задачей с тем же условием). Это защита от второй копии: два клиента на одной сессии Telegram могут отозвать авторизацию, и понадобится новый вход с кодом.
+- Автосинхронизации нет: доступа по SSH с greencloud на NL нет. `session.session` в копии снят утром 16.09 (ключ авторизации тот же, отличается только служебное состояние). Перед переключением свежие `session.session` и `data.json` переносить с NL, уже остановив NL.
+- Открыть копию, пока она запущена: `ssh -L 8181:127.0.0.1:8181 greencloud-vds`, затем `http://127.0.0.1:8181`.
+- Проверена без Telegram (тестовый клиент Flask): вход, главная страница со списком курса.
 
-**Что НЕ синхронизируется:**
-- Код приложения — берётся из git (`git pull`)
-- Папка `downloads/` — временные файлы, не нужно дублировать (МБ-ГБ)
+**Переключение (проверка или авария):**
+1. NL: `systemctl stop telegram-courses` (при окончательном переезде ещё `systemctl disable telegram-courses`)
+2. greencloud: `cd /opt/telegram-courses && git pull`; при необходимости свежие `session.session` и `data.json` с NL
+3. greencloud: `touch /opt/telegram-courses/ACTIVE_HERE && systemctl start telegram-courses`
 
-**Скрипт синхронизации** (запускать на резервном сервере вручную после понедельничного rescan, или cron раз в сутки):
-```bash
-#!/bin/bash
-# /usr/local/bin/sync-from-primary.sh
-PRIMARY=primary-server-alias
-cd /opt/telegram-courses
-git pull
-rsync -a $PRIMARY:/opt/telegram-courses/.env .
-rsync -a $PRIMARY:/opt/telegram-courses/session.session .
-rsync -a $PRIMARY:/opt/telegram-courses/data.json .
-```
+Обратно: на greencloud `systemctl stop telegram-courses && rm /opt/telegram-courses/ACTIVE_HERE`, потом `systemctl start telegram-courses` на NL.
 
-**Сервис на резерве:** установлен через systemd, но `systemctl disable` (не запускается автоматически).
+**Почему приложение пока не переехало: скорость до компьютера пользователя.** Замер 16.09.2026 с ПК пользователя (провайдер РФ, VPN включён):
 
-**При переключении** (основной упал):
-1. SSH на резерв
-2. Запустить `sync-from-primary.sh` (на случай если последняя синхронизация запоздала)
-3. `systemctl start telegram-courses`
-4. Открыть IP резервного сервера в браузере
-5. Закладку браузера обновить на новый IP
+| Путь | МБ/с |
+|---|---|
+| NL → ПК | 3.96 и 4.56 |
+| greencloud → ПК | 0.06 и 0.08 |
+| интернет → ПК через VPN (выход через greencloud) | 0.05-0.17 |
+| интернет → сам greencloud | 450 |
+
+Узкое место - канал РФ ↔ США, а не сервер. Лекция 600 МБ дойдёт до ПК с NL примерно за 2.5 минуты, с greencloud примерно за 2 часа. Маршрут второго пользователя не мерился.
 
 **Почему cold standby, а не active-active:**
 Telegram-сессия привязана к одному устройству. Два одновременных Telethon-клиента с одной сессией постоянно конфликтуют за авторизацию. Active-active возможен только с разными TG-сессиями, что сильно усложняет схему.
