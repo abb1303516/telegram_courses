@@ -16,3 +16,7 @@ class Config:
     DATA_FILE = os.path.abspath(os.getenv("DATA_FILE", "./data.json"))
     URL_PREFIX = os.getenv("URL_PREFIX", "")
     PROXY = os.getenv("PROXY", "")  # e.g. http://host:port or socks5://user:pass@host:port
+    # Separate connections per large file; 1 = single stream (Telethon's own path)
+    DOWNLOAD_CONNECTIONS = int(os.getenv("DOWNLOAD_CONNECTIONS", "4"))
+    # Opening connections takes ~1.5 s each; smaller files are faster single-stream
+    PARALLEL_MIN_MB = int(os.getenv("PARALLEL_MIN_MB", "60"))

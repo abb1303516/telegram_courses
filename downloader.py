@@ -19,8 +19,11 @@ from telethon.tl.types import (
 from telethon.utils import get_input_location
 
 from config import Config
+from parallel_download import SenderPool, ParallelUnsupported, download_document
 
 logger = logging.getLogger(__name__)
+
+MB = 1024 * 1024
 
 
 class DownloadCancelled(Exception):
@@ -259,9 +262,8 @@ class TelegramDownloader:
 
     @staticmethod
     def _cleanup_partial(filepath: str):
-        """Remove a partially-downloaded file after cancellation. Telethon
-        writes with 'wb' (no resume), so a leftover partial would wrongly
-        appear as a complete file."""
+        """Remove a partially-downloaded file after cancellation or error.
+        Downloads have no resume, so a leftover partial is just garbage."""
         try:
             if filepath and os.path.exists(filepath):
                 os.remove(filepath)
@@ -281,6 +283,54 @@ class TelegramDownloader:
                 prog["bytes_done"] = received
                 prog["bytes_total"] = total
         return callback
+
+    def _new_pool(self) -> SenderPool | None:
+        if Config.DOWNLOAD_CONNECTIONS > 1:
+            return SenderPool(self.client, Config.DOWNLOAD_CONNECTIONS)
+        return None
+
+    @staticmethod
+    async def _close_pool(pool: SenderPool | None):
+        """Close extra connections. Called after the downloading flag is
+        reset, so a failing disconnect can't block future downloads."""
+        if not pool:
+            return
+        try:
+            await pool.close()
+        except Exception as e:
+            logger.warning(f"Closing download connections failed: {e}")
+
+    async def _download_message(self, message, filepath: str, course_id: str,
+                                pool: SenderPool | None):
+        """Download message media into filepath. Writes to a .part file and
+        renames on success: a preallocated or interrupted file never shows
+        up under the real name, and a failed re-download keeps the old copy."""
+        part_path = filepath + ".part"
+        self._cleanup_partial(part_path)
+        progress_cb = self._make_progress_cb(course_id)
+        media = message.media
+        doc = media.document if isinstance(media, MessageMediaDocument) else None
+        try:
+            if pool and doc and doc.size >= Config.PARALLEL_MIN_MB * MB:
+                try:
+                    await download_document(pool, doc, part_path, progress_cb)
+                except ParallelUnsupported as e:
+                    logger.info(f"Parallel download not possible ({e}), "
+                                f"single stream: {os.path.basename(filepath)}")
+                    await self._download_single_stream(message, part_path, progress_cb)
+            else:
+                await self._download_single_stream(message, part_path, progress_cb)
+            os.replace(part_path, filepath)
+        except BaseException:
+            self._cleanup_partial(part_path)
+            raise
+
+    async def _download_single_stream(self, message, path: str, progress_cb):
+        result = await self.client.download_media(
+            message, file=path, progress_callback=progress_cb,
+        )
+        if not result or os.path.abspath(result) != os.path.abspath(path):
+            raise RuntimeError(f"Telegram не отдал файл (получено: {result})")
 
     async def download_single(self, course_id: str, chat_id: int, msg_id: int,
                               filename: str, file_size: int, course_dir: str):
@@ -304,25 +354,23 @@ class TelegramDownloader:
         }
 
         cancelled = False
+        pool = self._new_pool()
         # try/finally guarantees the downloading flag is always reset, even if
         # get_entity/makedirs raise — otherwise the whole subsystem would wedge.
+        # Partial files are removed by _download_message itself.
         try:
             os.makedirs(course_dir, exist_ok=True)
             entity = await self.client.get_entity(chat_id)
             message = await self.client.get_messages(entity, ids=msg_id)
             if message and message.media:
-                await self.client.download_media(
-                    message, file=filepath, progress_callback=self._make_progress_cb(course_id),
-                )
+                await self._download_message(message, filepath, course_id, pool)
                 logger.info(f"Downloaded: {filename}")
                 self.progress[course_id]["done"] = 1
         except DownloadCancelled:
             logger.info(f"Download cancelled: {filename}")
-            self._cleanup_partial(filepath)
             cancelled = True
         except Exception as e:
             logger.error(f"Error downloading {filename}: {e}")
-            self._cleanup_partial(filepath)
             self.progress[course_id]["errors"].append(
                 {"file": filename, "error": str(e)}
             )
@@ -331,6 +379,7 @@ class TelegramDownloader:
             self.progress[course_id]["current_file"] = ""
             self.downloading = False
             self.cancel_requested = False
+            await self._close_pool(pool)
 
     async def download_course(self, course_id: str, chat_id: int,
                               file_list: list[dict], course_dir: str):
@@ -354,6 +403,8 @@ class TelegramDownloader:
         }
 
         cancelled = False
+        # Connections are opened on the first large file and reused for the rest
+        pool = self._new_pool()
         # Outer try/finally guarantees the downloading flag is always reset,
         # even if makedirs/get_entity raise — otherwise every future download
         # would be blocked until the process restarts.
@@ -383,19 +434,14 @@ class TelegramDownloader:
                 try:
                     message = await self.client.get_messages(entity, ids=file_info["msg_id"])
                     if message and message.media:
-                        await self.client.download_media(
-                            message, file=filepath,
-                            progress_callback=self._make_progress_cb(course_id),
-                        )
+                        await self._download_message(message, filepath, course_id, pool)
                         logger.info(f"Downloaded: {filename}")
                 except DownloadCancelled:
                     logger.info(f"Download cancelled during: {filename}")
-                    self._cleanup_partial(filepath)
                     cancelled = True
                     break
                 except Exception as e:
                     logger.error(f"Error downloading {filename}: {e}")
-                    self._cleanup_partial(filepath)
                     self.progress[course_id]["errors"].append(
                         {"file": filename, "error": str(e)}
                     )
@@ -411,6 +457,7 @@ class TelegramDownloader:
             self.progress[course_id]["current_file"] = ""
             self.downloading = False
             self.cancel_requested = False
+            await self._close_pool(pool)
 
         return self.progress[course_id]
 
