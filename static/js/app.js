@@ -398,6 +398,19 @@ async function bulkDownloadTG() {
 
     if (!confirm('Скачать ' + pending.length + ' файлов из Telegram на сервер?')) return;
 
+    // One request for the whole list: the server downloads one file at a time,
+    // so per-file requests were rejected while the first one was running
+    try {
+        const data = await api('./api/course/download', { filenames: pending });
+        if (!data.ok) {
+            alert('Ошибка: ' + data.error);
+            return;
+        }
+    } catch (e) {
+        alert('Ошибка: ' + e.message);
+        return;
+    }
+
     for (const filename of pending) {
         const row = document.querySelector('.file-row[data-filename="' + CSS.escape(filename) + '"]');
         const btn = row ? row.querySelector('.file-actions .btn') : null;
@@ -405,15 +418,9 @@ async function bulkDownloadTG() {
             btn.disabled = true;
             btn.textContent = 'Загрузка...';
         }
-
-        try {
-            await api('./api/file/download-tg', { filename });
-        } catch (e) {
-            // continue with next file
-        }
     }
 
-    location.reload();
+    pollProgress();
 }
 
 /* -- Bulk Delete -- */

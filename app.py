@@ -308,7 +308,8 @@ def rescan_course():
 @app.route("/api/course/download", methods=["POST"])
 @login_required
 def download_from_tg():
-    """Download only NEW files (not yet on server) from Telegram."""
+    """Download files not yet on server from Telegram, one after another.
+    Optional JSON {filenames: [...]} limits the run to the selected files."""
     course_id, course, data = get_course()
     if not course:
         return jsonify({"ok": False, "error": "Курс не найден"}), 404
@@ -316,11 +317,15 @@ def download_from_tg():
         return jsonify({"ok": False, "error": "Загрузка уже идёт"}), 400
 
     course_dir = os.path.join(Config.DOWNLOAD_DIR, course_id)
+    selected = (request.get_json(silent=True) or {}).get("filenames")
+    selected = set(selected) if selected is not None else None
 
     # Filter to only files not on server (skip text-only entries)
     pending = []
     for f in course["files"]:
         if not f.get("filename"):
+            continue
+        if selected is not None and f["filename"] not in selected:
             continue
         filepath = os.path.join(course_dir, f["filename"])
         if not (os.path.exists(filepath) and os.path.getsize(filepath) > 0):
