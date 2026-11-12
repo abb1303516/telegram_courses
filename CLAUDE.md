@@ -68,7 +68,7 @@ Telegram может давать разным файлам одинаковые 
 - **Подписи к файлам** (`caption`): текст медиа-сообщения = название лекции, показывается под именем файла (решает проблему непонятных имён вроде `record_43.mp4`).
 - Текст не «скачивается» — приходит при сканировании, хранится в метаданных.
 - Переключатель «Текст» в строке сортировки (localStorage) скрывает/показывает текстовые строки.
-- Копирование: `navigator.clipboard` требует HTTPS, а приложение на HTTP по IP — поэтому fallback на `document.execCommand('copy')` через временный textarea.
+- Копирование: основной путь `navigator.clipboard` работает через HTTPS. Fallback на `document.execCommand('copy')` через временный textarea оставлен для старых HTTP-развёртываний.
 - Записи без `filename` (текстовые) пропускаются в дедупликации, скачивании, превью.
 
 ### Отмена скачивания
@@ -161,12 +161,12 @@ Telegram может давать разным файлам одинаковые 
 
 > **ТЕКУЩЕЕ СОСТОЯНИЕ (с 17.09.2026, пробное переключение): приложение работает на greencloud, NL остановлен и выключен.** Активная копия та, где есть файл `/opt/telegram-courses/ACTIVE_HERE`; без него юнит не стартует на обоих серверах. Перед любым `systemctl start/restart` проверить, какая копия активна: две копии на одной сессии Telegram могут отозвать авторизацию.
 >
-> Сейчас: URL `http://173.249.194.240:8181` (как на NL: HTTP без шифрования, пароль без ограничения попыток); обновление `ssh greencloud-vds "cd /opt/telegram-courses && git pull && systemctl restart telegram-courses"`. На greencloud `HOST=0.0.0.0` и открыт `ufw allow 8181/tcp` (17.09.2026, по указанию пользователя).
+> Сейчас: URL `https://173.249.194.240`; обновление `ssh greencloud-vds "cd /opt/telegram-courses && git pull && systemctl restart telegram-courses"`. С 12.11.2026 nginx завершает TLS на 443, Flask слушает только `127.0.0.1:8181`, публичный 8181 закрыт. Короткий IP-сертификат Let's Encrypt автоматически продлевает `certbot-ip-renew.timer` дважды в день; тестовое продление проверено 12.11.2026.
 
 Сервер NL: `ssh kinescope-vds` (IP `188.208.103.65`, root, голландский VDS Hostkey B.v.)
 URL NL: `http://188.208.103.65:8181`
 
-Пользователи: администратор + 1 близкий пользователь. Без HTTPS/домена. Считалось, что трафик шифрует AmneziaVPN, но адрес сервера идёт мимо туннеля (см. «Хостинг приложения»).
+Пользователи: администратор + 1 близкий пользователь. Домен не используется, HTTPS работает по IP-сертификату. До 12.11.2026 трафик шел по HTTP мимо VPN; старый пароль после включения HTTPS пока не менялся.
 
 ```bash
 # На сервере — первый раз:
@@ -176,12 +176,12 @@ cd telegram-courses
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env  # заполнить: HOST=0.0.0.0, PORT=8181, URL_PREFIX=, PROXY=
+cp .env.example .env  # заполнить: HOST=127.0.0.1, PORT=8181, URL_PREFIX=, PROXY=
 # Создать systemd-сервис /etc/systemd/system/telegram-courses.service
 sudo systemctl enable --now telegram-courses
 
 # Обновление (на активной копии, см. «Текущее состояние»):
-ssh kinescope-vds "cd /opt/telegram-courses && git pull && systemctl restart telegram-courses"
+ssh greencloud-vds "cd /opt/telegram-courses && git pull && systemctl restart telegram-courses"
 ```
 
 На NL юнит дополнен drop-in `/etc/systemd/system/telegram-courses.service.d/active-marker.conf` с тем же `ConditionPathExists=/opt/telegram-courses/ACTIVE_HERE` (17.09.2026).
@@ -192,10 +192,10 @@ ssh kinescope-vds "cd /opt/telegram-courses && git pull && systemctl restart tel
 
 Установлена 16.09.2026: `ssh greencloud-vds` (`173.249.194.240`, США, Ubuntu 24.04, Python 3.12, свободно ~30 ГБ). На этом же сервере работает VPN пользователя (Docker `amnezia-awg2`): сервер не ребутить, Docker и firewall не трогать без явного ОК.
 
-- `/opt/telegram-courses`: код из git, venv, `.env`/`session.session`/`data.json` скопированы с NL (права 600). В `.env` `HOST=0.0.0.0`, в ufw добавлено правило `8181/tcp` (17.09.2026); правила SSH и VPN не менялись.
+- `/opt/telegram-courses`: код из git, venv, `.env`/`session.session`/`data.json` скопированы с NL (права 600). С 12.11.2026 в `.env` `HOST=127.0.0.1`, `SESSION_COOKIE_SECURE=true`, `BEHIND_PROXY=true`; в ufw открыты 80/443, публичный 8181 закрыт. Правила SSH и VPN не менялись.
 - Юнит `telegram-courses` стартует только при наличии метки: `ConditionPathExists=/opt/telegram-courses/ACTIVE_HERE`. Без метки `systemctl start` пропускает запуск (проверено временной задачей с тем же условием). Это защита от второй копии: два клиента на одной сессии Telegram могут отозвать авторизацию, и понадобится новый вход с кодом.
 - Автосинхронизации нет: доступа по SSH с greencloud на NL нет. `session.session` в копии снят утром 16.09 (ключ авторизации тот же, отличается только служебное состояние). Перед переключением свежие `session.session` и `data.json` переносить с NL, уже остановив NL.
-- Открыть копию, пока она запущена: `http://173.249.194.240:8181`.
+- Открыть активную копию: `https://173.249.194.240`.
 - В `.env` на greencloud `PARALLEL_MIN_MB=15` (17.09.2026): из США один поток ~1.5 МБ/с против ~4.5 на NL, поэтому 4 соединения окупаются уже примерно с 15 МБ. Первая живая пачка с greencloud: 399 МБ за ~69 с и 466 МБ за ~78 с (около 6 МБ/с из Telegram на сервер).
 - Проверена без Telegram (тестовый клиент Flask): вход, главная страница со списком курса.
 
