@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Настройки — Курсы</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
@@ -16,7 +17,10 @@
                 {% if course %}
                 <a href="{{ url_for('index') }}" class="btn btn-secondary">К файлам</a>
                 {% endif %}
-                <a href="{{ url_for('logout') }}" class="btn btn-ghost">Выйти</a>
+                <form method="POST" action="{{ url_for('logout') }}" class="logout-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-ghost">Выйти</button>
+                </form>
             </div>
         </header>
 

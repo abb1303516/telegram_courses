@@ -6,7 +6,9 @@ Simplified MVP: one course, clean UI for downloading lectures.
 import os
 import json
 import asyncio
+import hmac
 import logging
+import secrets
 import threading
 from functools import wraps
 from datetime import datetime
@@ -15,6 +17,9 @@ from flask import (
     Flask, render_template, request, redirect, url_for,
     session, jsonify, send_file,
 )
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from config import Config
 from downloader import downloader, TelegramDownloader
@@ -24,8 +29,29 @@ from downloader import downloader, TelegramDownloader
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
+Config.validate_security()
+
 app = Flask(__name__)
-app.secret_key = Config.SECRET_KEY
+app.config.update(
+    SECRET_KEY=Config.SECRET_KEY,
+    MAX_CONTENT_LENGTH=256 * 1024,
+    SESSION_COOKIE_NAME="telegram_courses_session",
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=Config.SESSION_COOKIE_SECURE,
+    SESSION_COOKIE_PATH=Config.URL_PREFIX or "/",
+    TRUSTED_HOSTS=Config.TRUSTED_HOSTS or None,
+)
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    storage_uri="memory://",
+    headers_enabled=True,
+)
+
+if Config.BEHIND_PROXY:
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
 
 # -- Prefix middleware for reverse proxy (/tg/) --
@@ -42,6 +68,73 @@ class PrefixMiddleware:
 
 if Config.URL_PREFIX:
     app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=Config.URL_PREFIX)
+
+
+# -- Request security --
+
+def csrf_token() -> str:
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["_csrf_token"] = token
+    return token
+
+
+app.jinja_env.globals["csrf_token"] = csrf_token
+
+
+@app.before_request
+def validate_csrf():
+    """Require a session-bound token for every state-changing request."""
+    if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return None
+
+    expected = session.get("_csrf_token", "")
+    supplied = request.form.get("csrf_token", "") or request.headers.get(
+        "X-CSRF-Token", ""
+    )
+    if expected and supplied and hmac.compare_digest(expected, supplied):
+        return None
+
+    if request.path.startswith("/api/"):
+        return jsonify({"ok": False, "error": "Недействительный защитный токен"}), 403
+    return render_template("login.html", error="Сессия устарела. Обновите страницу."), 403
+
+
+@app.after_request
+def add_security_headers(response):
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "media-src 'self'; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "frame-ancestors 'none'; "
+        "form-action 'self'"
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=(), payment=()"
+    )
+    if request.is_secure:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000"
+    if response.mimetype in {"text/html", "application/json"}:
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.errorhandler(429)
+def rate_limit_exceeded(error):
+    if request.endpoint == "login":
+        return render_template(
+            "login.html",
+            error="Слишком много попыток. Подождите и попробуйте снова.",
+        ), 429
+    return error
 
 
 # -- Async event loop in background thread --
@@ -108,19 +201,28 @@ def login_required(f):
 
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit(
+    "5 per minute; 20 per hour",
+    methods=["POST"],
+    deduct_when=lambda response: response.status_code == 401,
+)
 def login():
     error = None
     if request.method == "POST":
-        if request.form.get("password") == Config.APP_PASSWORD:
+        password = request.form.get("password", "")
+        if hmac.compare_digest(password, Config.APP_PASSWORD):
+            session.clear()  # gs-lint: ok - Flask session, not a worksheet
             session["logged_in"] = True
+            session["_csrf_token"] = secrets.token_urlsafe(32)
             return redirect(url_for("index"))
         error = "Неверный пароль"
+        return render_template("login.html", error=error), 401
     return render_template("login.html", error=error)
 
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 def logout():
-    session.clear()
+    session.clear()  # gs-lint: ok - Flask session, not a worksheet
     return redirect(url_for("login"))
 
 

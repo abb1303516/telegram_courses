@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Вход — Курсы</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
@@ -16,6 +17,7 @@
         {% endif %}
 
         <form method="POST" action="{{ url_for('login') }}" autocomplete="on">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <!-- Hidden username for browser password manager -->
             <input type="text" name="username" value="user"
                    autocomplete="username" style="display:none" aria-hidden="true">

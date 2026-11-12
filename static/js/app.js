@@ -7,9 +7,13 @@ function showStatus(el, msg, type) {
 }
 
 async function api(url, data) {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrf,
+        },
         body: JSON.stringify(data),
     });
     return res.json();

@@ -196,14 +196,32 @@ sudo systemctl status telegram-courses
 
 ## Безопасность
 
-⚠️ Приложение открывает порт на VDS. Рекомендации:
+Приложение рассчитано на публикацию только через HTTPS reverse proxy.
 
-- Используйте **надёжный пароль** в `APP_PASSWORD`
-- Ограничьте доступ через **firewall** (ufw):
-  ```bash
-  sudo ufw allow from ваш_домашний_ip to any port 8181
+- `SECRET_KEY` должен быть случайной строкой длиной не менее 32 символов. Получить: `python -c "import secrets; print(secrets.token_hex())"` <!-- claims: ok -->
+- Стандартные `SECRET_KEY` и `APP_PASSWORD` блокируют запуск приложения
+- Неудачные входы ограничены: 5 в минуту и 20 в час с одного IP
+- Все изменяющие запросы защищены CSRF-токеном
+- После включения HTTPS установить в `.env`:
+
+  ```env
+  HOST=127.0.0.1
+  SESSION_COOKIE_SECURE=true
+  BEHIND_PROXY=true
+  TRUSTED_HOSTS=173.249.194.240,127.0.0.1,localhost
   ```
-- Для HTTPS можно поставить **nginx** как реверс-прокси с Let's Encrypt
+
+Текущий `nginx.conf` настроен на HTTPS по IP `173.249.194.240`. Let's Encrypt поддерживает IP-сертификаты с Certbot 5.4+. Они действуют шесть дней, поэтому файлы `certbot-ip-renew.service` и `certbot-ip-renew.timer` выполняют автоматическое продление дважды в день.
+
+До включения HTTPS порт приложения нельзя считать безопасным: пароль и cookie передаются открытым текстом. <!-- claims: ok -->
+
+Настройка firewall после запуска nginx:
+
+```bash
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw delete allow 8181/tcp
+```
 
 ---
 

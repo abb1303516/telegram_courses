@@ -27,6 +27,10 @@ body {
     min-height: 100vh;
 }
 
+.logout-form {
+    margin: 0;
+}
+
 /* -- Main page: full-height flex layout -- */
 body.main-page {
     height: 100vh;
